@@ -625,8 +625,11 @@ function ExplorePage({ user }) {
   const touchStartY = useRef(0);
 
   useEffect(() => {
-    const q = query(collection(db, "posts"), where("type", "==", "video"), where("public", "==", true), orderBy("createdAt", "desc"), limit(20));
-    const unsub = onSnapshot(q, snap => setVideos(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    const q = query(collection(db, "posts"), where("type", "==", "video"), orderBy("createdAt", "desc"), limit(20));
+    const unsub = onSnapshot(q, snap => {
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setVideos(all); // show all videos regardless of public flag for now
+    });
     return unsub;
   }, []);
 
@@ -935,7 +938,7 @@ function AssocProfilePage({ assoc, user, setPage }) {
   useEffect(() => {
     if (!assoc?.id) return;
     getDoc(doc(db, "associations", assoc.id)).then(d => d.exists() && setFullAssoc({ id: d.id, ...d.data() }));
-    getDocs(query(collection(db, "posts"), where("assocId", "==", assoc.id), orderBy("createdAt", "desc"))).then(snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    getDocs(query(collection(db, "posts"), where("assocId", "==", assoc.id))).then(snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))));
     getDocs(query(collection(db, "events"), where("assocId", "==", assoc.id))).then(snap => setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
   }, [assoc?.id]);
 
@@ -1182,8 +1185,8 @@ function ProfilePage({ user, setUser, setPage }) {
     getDoc(doc(db, "users", user.uid)).then(d => d.exists() && setProfile({ ...d.data() }));
     if (user.role === "association") {
       getDoc(doc(db, "associations", user.uid)).then(d => d.exists() && setAssocProfile({ id: d.id, ...d.data() }));
-      const q = query(collection(db, "posts"), where("assocId", "==", user.uid), orderBy("createdAt", "desc"));
-      const unsub = onSnapshot(q, snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+      const q = query(collection(db, "posts"), where("assocId", "==", user.uid));
+      const unsub = onSnapshot(q, snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))));
       return unsub;
     }
   }, [user?.uid]);
@@ -1382,7 +1385,7 @@ function CreatePostModal({ user, assocProfile, onClose }) {
       await addDoc(collection(db, "posts"), {
         assocId: user.uid, assocName: assocProfile?.name || user.name,
         assocLogo: assocProfile?.logoURL || "",
-        caption: caption.trim(), mediaURL, type, public: isPublic,
+        caption: caption.trim(), mediaURL, type, isPublic,
         likes: 0, comments: 0, shares: 0, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "associations", user.uid), { posts: increment(1) });
