@@ -1182,7 +1182,9 @@ function ProfilePage({ user, setUser, setPage }) {
     getDoc(doc(db, "users", user.uid)).then(d => d.exists() && setProfile({ ...d.data() }));
     if (user.role === "association") {
       getDoc(doc(db, "associations", user.uid)).then(d => d.exists() && setAssocProfile({ id: d.id, ...d.data() }));
-      getDocs(query(collection(db, "posts"), where("assocId", "==", user.uid), orderBy("createdAt", "desc"))).then(snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+      const q = query(collection(db, "posts"), where("assocId", "==", user.uid), orderBy("createdAt", "desc"));
+      const unsub = onSnapshot(q, snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+      return unsub;
     }
   }, [user?.uid]);
 
