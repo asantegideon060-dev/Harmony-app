@@ -1335,70 +1335,134 @@ function AssocProfileEditor({ assocProfile, userId, onUpdate }) {
 }
 
 // ── Create Post Modal ─────────────────────────────────────────
+
+// ── Create Post Modal ─────────────────────────────────────────
 function CreatePostModal({ user, assocProfile, onClose }) {
   const [caption, setCaption] = useState("");
   const [type, setType] = useState("image");
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [isPublic, setIsPublic] = useState(true);
+  const [error, setError] = useState("");
+  const fileInputRef = useRef(null);
 
   const handleFile = (e) => {
-    const f = e.target.files[0]; if (!f) return;
+    const f = e.target.files[0];
+    if (!f) return;
+    if (f.size > 50 * 1024 * 1024) { setError("File too large. Max 50MB."); return; }
+    setError("");
     setFile(f);
     setPreview(URL.createObjectURL(f));
-    setType(f.type.startsWith("video") ? "video" : "image");
+    if (f.type.startsWith("video")) setType("video");
   };
 
   const submit = async () => {
-    setUploading(true);
+    if (!caption.trim() && !file) { setError("Please add a caption or media."); return; }
+    setUploading(true); setUploadProgress(0); setError("");
     try {
       let mediaURL = "";
-      if (file) mediaURL = await uploadMedia(file, type === "video" ? "video" : "image");
+      if (file) {
+        const resourceType = file.type.startsWith("video") ? "video" : "image";
+        mediaURL = await new Promise((resolve, reject) => {
+          const data = new FormData();
+          data.append("file", file);
+          data.append("upload_preset", CLOUDINARY_PRESET);
+          data.append("cloud_name", CLOUDINARY_CLOUD);
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/${resourceType}/upload`);
+          xhr.upload.onprogress = (e) => { if (e.lengthComputable) setUploadProgress(Math.round((e.loaded / e.total) * 100)); };
+          xhr.onload = () => { const r = JSON.parse(xhr.responseText); r.secure_url ? resolve(r.secure_url) : reject(new Error(r.error?.message || "Upload failed")); };
+          xhr.onerror = () => reject(new Error("Network error"));
+          xhr.send(data);
+        });
+      }
       await addDoc(collection(db, "posts"), {
         assocId: user.uid, assocName: assocProfile?.name || user.name,
         assocLogo: assocProfile?.logoURL || "",
-        caption, mediaURL, type, public: isPublic,
-        likes: 0, comments: 0, shares: 0,
-        createdAt: serverTimestamp(),
+        caption: caption.trim(), mediaURL, type, public: isPublic,
+        likes: 0, comments: 0, shares: 0, createdAt: serverTimestamp(),
       });
       await updateDoc(doc(db, "associations", user.uid), { posts: increment(1) });
       onClose();
-    } catch (err) { alert("Upload failed: " + err.message); }
-    setUploading(false);
+    } catch (err) { setError("Upload failed: " + err.message); }
+    setUploading(false); setUploadProgress(0);
   };
+
+  const postTypes = [
+    { id: "image", label: "📸 Image" },
+    { id: "video", label: "🎬 Video" },
+    { id: "announcement", label: "📢 Announcement" },
+    { id: "event_flyer", label: "🗓️ Flyer" },
+  ];
 
   return (
     <div style={S.modal} onClick={onClose}>
       <div style={S.modalBox} onClick={e => e.stopPropagation()}>
         <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 18, marginBottom: 16 }}>Create Post</div>
+        {error && <div style={{ background: "#FEF2F2", color: C.error, padding: "10px 14px", borderRadius: 10, fontSize: 13, marginBottom: 14 }}>{error}</div>}
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-          {["image", "video", "announcement", "event_flyer"].map(t => (
-            <button key={t} style={{ ...S.tag, cursor: "pointer", border: "none", fontSize: 11, background: type === t ? C.primary : C.primaryLight, color: type === t ? "white" : C.primary }}
-              onClick={() => setType(t)}>{t}</button>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          {postTypes.map(t => (
+            <button key={t.id} style={{ ...S.tag, cursor: "pointer", border: "none", fontSize: 12, padding: "7px 12px", background: type === t.id ? C.primary : C.primaryLight, color: type === t.id ? "white" : C.primary, fontWeight: 600 }}
+              onClick={() => { setType(t.id); setFile(null); setPreview(""); setError(""); }}>
+              {t.label}
+            </button>
           ))}
         </div>
 
         {(type === "image" || type === "video" || type === "event_flyer") && (
-          <div style={{ border: `2px dashed ${C.border}`, borderRadius: 12, marginBottom: 14, overflow: "hidden", cursor: "pointer", height: 160, position: "relative", background: C.surface }}>
-            {preview ? (type === "video" ? <video src={preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <img src={preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />) : <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: C.textMuted }}>
-              <span style={{ fontSize: 32 }}>📎</span><span style={{ fontSize: 13 }}>Tap to select {type}</span>
-            </div>}
-            <input type="file" accept={type === "video" ? "video/*" : "image/*"} style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} onChange={handleFile} />
+          <div style={{ border: `2px dashed ${preview ? C.primary : C.border}`, borderRadius: 14, marginBottom: 14, overflow: "hidden", cursor: "pointer", height: 180, position: "relative", background: C.surface }}
+            onClick={() => fileInputRef.current?.click()}>
+            {preview ? (
+              type === "video"
+                ? <video src={preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                : <img src={preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: C.textMuted }}>
+                <span style={{ fontSize: 40 }}>{type === "video" ? "🎬" : "📸"}</span>
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Tap to select {type === "video" ? "video" : "image"}</div>
+                  {type === "video" && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>MP4, MOV · Max 50MB</div>}
+                </div>
+              </div>
+            )}
+            {preview && (
+              <button style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: "white", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}
+                onClick={e => { e.stopPropagation(); setFile(null); setPreview(""); }}>✕</button>
+            )}
+            <input ref={fileInputRef} type="file"
+              accept={type === "video" ? "video/mp4,video/quicktime,video/*" : "image/*"}
+              style={{ display: "none" }} onChange={handleFile} />
           </div>
         )}
 
-        <textarea style={{ ...S.input, height: 80, resize: "vertical", marginBottom: 12 }} placeholder="Write a caption..." value={caption} onChange={e => setCaption(e.target.value)} />
+        {uploading && file && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textMuted, marginBottom: 4 }}>
+              <span>Uploading {type}...</span><span>{uploadProgress}%</span>
+            </div>
+            <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${uploadProgress}%`, background: `linear-gradient(90deg, ${C.primary}, ${C.accent})`, borderRadius: 3, transition: "width 0.2s" }} />
+            </div>
+          </div>
+        )}
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} id="public" />
-          <label htmlFor="public" style={{ fontSize: 13, color: C.textMuted, fontFamily: font.body }}>Public (appears in Explore feed)</label>
+        <textarea style={{ ...S.input, height: 90, resize: "vertical", marginBottom: 12 }}
+          placeholder={type === "announcement" ? "Write your announcement..." : "Write a caption..."}
+          value={caption} onChange={e => setCaption(e.target.value)} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, padding: "10px 14px", background: C.surface, borderRadius: 12 }}>
+          <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} id="public" style={{ width: 16, height: 16, accentColor: C.primary }} />
+          <label htmlFor="public" style={{ fontSize: 13, color: C.textMuted, fontFamily: font.body, cursor: "pointer" }}>🌍 Public — appears in Explore feed</label>
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
-          <button style={{ ...S.btn(), flex: 1, opacity: uploading ? 0.7 : 1 }} onClick={submit} disabled={uploading}>{uploading ? "Uploading..." : "Post"}</button>
-          <button style={{ ...S.btn("outline"), flex: 1 }} onClick={onClose}>Cancel</button>
+          <button style={{ ...S.btn(), flex: 1, opacity: uploading ? 0.7 : 1 }} onClick={submit} disabled={uploading}>
+            {uploading ? (uploadProgress > 0 ? `${uploadProgress}%...` : "Processing...") : "Post"}
+          </button>
+          <button style={{ ...S.btn("outline"), flex: 1 }} onClick={onClose} disabled={uploading}>Cancel</button>
         </div>
       </div>
     </div>
