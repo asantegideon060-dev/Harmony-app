@@ -122,6 +122,7 @@ function AuthScreen({ onAuth }) {
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "student" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPass, setShowPass] = useState(false);
 
   const handle = async () => {
     setError(""); setLoading(true);
@@ -199,7 +200,12 @@ function AuthScreen({ onAuth }) {
         <label style={S.label}>Email</label>
         <input style={{ ...S.input, marginBottom: 14 }} type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
         <label style={S.label}>Password</label>
-        <input style={{ ...S.input, marginBottom: 20 }} type="password" placeholder="••••••••" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === "Enter" && handle()} />
+        <div style={{ position: "relative", marginBottom: 20 }}>
+          <input style={{ ...S.input, paddingRight: 44 }} type={showPass ? "text" : "password"} placeholder="••••••••" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === "Enter" && handle()} />
+          <button type="button" style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: C.textMuted, fontSize: 18, padding: 0 }} onClick={() => setShowPass(p => !p)}>
+            {showPass ? "🙈" : "👁️"}
+          </button>
+        </div>
 
         <button style={{ ...S.btn(), width: "100%", opacity: loading ? 0.7 : 1 }} onClick={handle} disabled={loading}>
           {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
@@ -229,19 +235,20 @@ function TopNav({ user, page, setPage, notifCount }) {
 
 // ── Bottom Nav ─────────────────────────────────────────────────
 function BottomNav({ page, setPage, user }) {
+  const isExplore = page === "explore";
   const tabs = [
-    { id: "home", label: "Home", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg> },
-    { id: "explore", label: "Explore", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><polygon points="5,3 19,12 5,21"/></svg> },
-    { id: "events", label: "Events", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-    { id: "search", label: "Discover", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
-    { id: "profile", label: "Profile", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+    { id: "home", label: "Home", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? (isExplore ? "white" : C.primary) : "none"} stroke={active ? (isExplore ? "white" : C.primary) : (isExplore ? "rgba(255,255,255,0.6)" : C.textMuted)} strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg> },
+    { id: "explore", label: "Explore", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? (isExplore ? "white" : C.primary) : "none"} stroke={active ? (isExplore ? "white" : C.primary) : (isExplore ? "rgba(255,255,255,0.6)" : C.textMuted)} strokeWidth="2" strokeLinecap="round"><polygon points="5,3 19,12 5,21"/></svg> },
+    { id: "events", label: "Events", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? (isExplore ? "white" : C.primary) : "none"} stroke={active ? (isExplore ? "white" : C.primary) : (isExplore ? "rgba(255,255,255,0.6)" : C.textMuted)} strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+    { id: "search", label: "Discover", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? (isExplore ? "white" : C.primary) : (isExplore ? "rgba(255,255,255,0.6)" : C.textMuted)} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
+    { id: "profile", label: "Profile", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? (isExplore ? "white" : C.primary) : "none"} stroke={active ? (isExplore ? "white" : C.primary) : (isExplore ? "rgba(255,255,255,0.6)" : C.textMuted)} strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
   ];
   return (
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, background: C.white, borderTop: `1px solid ${C.border}`, display: "flex", maxWidth: 480, margin: "0 auto" }}>
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 200, background: isExplore ? "rgba(0,0,0,0.5)" : C.white, backdropFilter: isExplore ? "blur(10px)" : "none", borderTop: isExplore ? "1px solid rgba(255,255,255,0.1)" : `1px solid ${C.border}`, display: "flex", maxWidth: 480, margin: "0 auto" }}>
       {tabs.map(t => (
         <button key={t.id} style={{ flex: 1, padding: "10px 4px 6px", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }} onClick={() => setPage(t.id)}>
           {t.icon(page === t.id)}
-          <span style={{ fontSize: 10, fontFamily: font.body, fontWeight: page === t.id ? 700 : 500, color: page === t.id ? C.primary : C.textMuted }}>{t.label}</span>
+          <span style={{ fontSize: 10, fontFamily: font.body, fontWeight: page === t.id ? 700 : 500, color: page === t.id ? (isExplore ? "white" : C.primary) : (isExplore ? "rgba(255,255,255,0.6)" : C.textMuted) }}>{t.label}</span>
         </button>
       ))}
     </div>
@@ -1506,7 +1513,7 @@ export default function App() {
     }
   };
 
-  const hideNav = page === "explore";
+  const hideNav = false;
 
   return (
     <div style={{ fontFamily: font.body, maxWidth: 480, margin: "0 auto", position: "relative" }}>
@@ -1524,3 +1531,4 @@ export default function App() {
     </div>
   );
 }
+
