@@ -324,11 +324,15 @@ function HomePage({ user, setPage, setSelectedAssoc }) {
         {/* Search */}
         <div style={{ position: "relative" }}>
           <svg style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input style={{ ...S.input, paddingLeft: 40, background: "rgba(255,255,255,0.12)", border: "1.5px solid rgba(255,255,255,0.2)", color: C.white, fontSize: 14 }}
+          <input style={{ ...S.input, paddingLeft: 40, paddingRight: search ? 40 : 16, background: "rgba(255,255,255,0.12)", border: "1.5px solid rgba(255,255,255,0.2)", color: C.white, fontSize: 14 }}
             placeholder="Search associations, clubs..."
             value={search}
             onChange={e => handleSearch(e.target.value)}
           />
+          {search.trim() && (
+            <button style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "rgba(255,255,255,0.2)", border: "none", borderRadius: "50%", width: 22, height: 22, cursor: "pointer", color: "white", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}
+              onClick={() => { setSearch(""); setSearchResults([]); setSearching(false); }}>✕</button>
+          )}
         </div>
       </div>
 
@@ -336,7 +340,10 @@ function HomePage({ user, setPage, setSelectedAssoc }) {
         {/* Search Results */}
         {search.trim() && (
           <div style={{ marginTop: 16 }}>
-            <div style={{ ...S.sectionTitle, fontSize: 16, marginBottom: 12 }}>Search Results</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22, color: C.text, padding: 0 }} onClick={() => { setSearch(""); setSearchResults([]); setSearching(false); }}>←</button>
+              <div style={{ ...S.sectionTitle, fontSize: 16, margin: 0 }}>Results for "{search}"</div>
+            </div>
             {searching ? <div style={{ textAlign: "center", padding: 24, color: C.textMuted }}>Searching...</div>
               : searchResults.length === 0 ? <div style={{ textAlign: "center", padding: 24, color: C.textMuted }}>No associations found for "{search}"</div>
               : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
