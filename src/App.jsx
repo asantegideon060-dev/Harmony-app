@@ -242,7 +242,65 @@ function OnboardingScreen({ onDone }) {
   );
 }
 
-// ── Auth Screen ───────────────────────────────────────────────
+// ── Welcome Back Screen ────────────────────────────────────────
+function WelcomeBackScreen({ user, onContinue }) {
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${C.primaryDark} 0%, #312E81 60%, #4C1D95 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, position: "relative", overflow: "hidden" }}>
+      {/* Background decoration */}
+      <div style={{ position: "absolute", width: 350, height: 350, borderRadius: "50%", background: "rgba(124,58,237,0.12)", top: -80, right: -80 }} />
+      <div style={{ position: "absolute", width: 250, height: 250, borderRadius: "50%", background: "rgba(245,158,11,0.08)", bottom: -60, left: -60 }} />
+
+      {/* Logo small */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 48 }}>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+          </svg>
+        </div>
+        <span style={{ fontFamily: font.display, fontWeight: 800, fontSize: 22, color: C.white }}>Harmony</span>
+      </div>
+
+      {/* Avatar */}
+      <div style={{ width: 90, height: 90, borderRadius: "50%", border: `3px solid rgba(255,255,255,0.2)`, overflow: "hidden", background: `linear-gradient(135deg, ${C.primary}40, ${C.accent}20)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, boxShadow: "0 8px 32px rgba(0,0,0,0.3)" }}>
+        {user?.photoURL
+          ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          : <span style={{ fontSize: 36 }}>👤</span>}
+      </div>
+
+      {/* Greeting */}
+      <p style={{ fontFamily: font.body, fontSize: 15, color: "rgba(255,255,255,0.55)", marginBottom: 6 }}>{greeting} 👋</p>
+      <h2 style={{ fontFamily: font.display, fontWeight: 800, fontSize: 28, color: C.white, textAlign: "center", marginBottom: 10, letterSpacing: "-0.5px" }}>
+        Welcome back,<br />{user?.name?.split(" ")[0] || "Explorer"}!
+      </h2>
+      <p style={{ fontFamily: font.body, fontSize: 14, color: "rgba(255,255,255,0.45)", textAlign: "center", marginBottom: 48, lineHeight: 1.5 }}>
+        Ready to explore what's happening<br />on campus today?
+      </p>
+
+      {/* Continue button */}
+      <button style={{ width: "100%", maxWidth: 320, padding: "16px", borderRadius: 16, border: "none", cursor: "pointer", fontFamily: font.display, fontWeight: 700, fontSize: 16, background: `linear-gradient(135deg, ${C.primary}, #6D28D9)`, color: "white", boxShadow: "0 8px 24px rgba(124,58,237,0.45)", marginBottom: 16 }}
+        onClick={onContinue}>
+        Let's Go 🎓
+      </button>
+
+      {/* Quick stats row */}
+      <div style={{ display: "flex", gap: 20, marginTop: 8 }}>
+        {[
+          { icon: "🏛️", label: user?.role === "association" ? "Association" : "Student" },
+          { icon: "🎵", label: "Harmony" },
+          { icon: "📅", label: "Events" },
+        ].map((s, i) => (
+          <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <span style={{ fontSize: 20 }}>{s.icon}</span>
+            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontFamily: font.body, fontWeight: 600 }}>{s.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "student" });
@@ -1650,6 +1708,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showWelcomeBack, setShowWelcomeBack] = useState(false);
   const [page, setPage] = useState("home");
   const [selectedAssoc, setSelectedAssoc] = useState(null);
   const [notifCount, setNotifCount] = useState(0);
@@ -1661,7 +1720,10 @@ export default function App() {
     const timer = setTimeout(() => {
       setShowSplash(false);
       const seen = localStorage.getItem("harmony_onboarded");
-      if (!seen) setShowOnboarding(true);
+      if (!seen) {
+        setShowOnboarding(true);
+      }
+      // Welcome back shown after auth resolves — handled in auth listener
     }, 2200);
     return () => clearTimeout(timer);
   }, []);
@@ -1673,6 +1735,9 @@ export default function App() {
         if (snap.exists()) {
           const data = { uid: fireUser.uid, ...snap.data() };
           setUser(data);
+          // Show welcome back for returning users (onboarding already seen)
+          const seen = localStorage.getItem("harmony_onboarded");
+          if (seen) setShowWelcomeBack(true);
           // Notif count
           const q = query(collection(db, "notifications"), where("toUserId", "==", fireUser.uid), where("read", "==", false));
           onSnapshot(q, s => setNotifCount(s.size));
@@ -1690,6 +1755,10 @@ export default function App() {
       localStorage.setItem("harmony_onboarded", "true");
       setShowOnboarding(false);
     }} />
+  );
+
+  if (showWelcomeBack && user) return (
+    <WelcomeBackScreen user={user} onContinue={() => setShowWelcomeBack(false)} />
   );
 
   if (loading) return (
