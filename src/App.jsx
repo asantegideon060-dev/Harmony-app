@@ -116,6 +116,132 @@ function HarmonyLogo({ size = 28 }) {
   );
 }
 
+// ── Splash Screen ─────────────────────────────────────────────
+function SplashScreen() {
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${C.primaryDark} 0%, #312E81 50%, #4C1D95 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 0, overflow: "hidden", position: "relative" }}>
+      {/* Background circles */}
+      <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "rgba(124,58,237,0.15)", top: -100, right: -100 }} />
+      <div style={{ position: "absolute", width: 300, height: 300, borderRadius: "50%", background: "rgba(245,158,11,0.08)", bottom: -80, left: -80 }} />
+      <div style={{ position: "absolute", width: 200, height: 200, borderRadius: "50%", background: "rgba(124,58,237,0.1)", bottom: 100, right: 40 }} />
+
+      {/* Logo */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, animation: "fadeIn 0.8s ease" }}>
+        <div style={{ width: 100, height: 100, borderRadius: 28, background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 20px 60px rgba(124,58,237,0.5)" }}>
+          <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round">
+            <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+          </svg>
+        </div>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 44, color: C.white, letterSpacing: "-1.5px", lineHeight: 1 }}>Harmony</div>
+          <div style={{ color: "rgba(255,255,255,0.55)", fontFamily: font.body, fontSize: 15, marginTop: 10, letterSpacing: 0.3 }}>Connecting Students to Campus Communities</div>
+        </div>
+        {/* Loading dots */}
+        <div style={{ display: "flex", gap: 8, marginTop: 40 }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: i === 0 ? C.accent : "rgba(255,255,255,0.3)" }} />
+          ))}
+        </div>
+      </div>
+      <style>{`@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+    </div>
+  );
+}
+
+// ── Onboarding Screen ──────────────────────────────────────────
+const ONBOARDING_SLIDES = [
+  {
+    emoji: "🏛️",
+    title: "Discover Your Community",
+    desc: "Explore hundreds of student associations, clubs, fellowships, and societies on your campus — all in one place.",
+    bg: `linear-gradient(160deg, #1E1B4B 0%, #312E81 100%)`,
+    accent: "#7C3AED",
+  },
+  {
+    emoji: "🎬",
+    title: "Stay in the Loop",
+    desc: "Watch videos, read announcements, and discover events from associations you follow — just like your favourite social app.",
+    bg: `linear-gradient(160deg, #1E1B4B 0%, #4C1D95 100%)`,
+    accent: "#F59E0B",
+  },
+  {
+    emoji: "🤝",
+    title: "Connect & Belong",
+    desc: "Follow associations, attend events, send messages, and find your people on campus.",
+    bg: `linear-gradient(160deg, #312E81 0%, #1E1B4B 100%)`,
+    accent: "#10B981",
+  },
+];
+
+function OnboardingScreen({ onDone }) {
+  const [slide, setSlide] = useState(0);
+  const [animating, setAnimating] = useState(false);
+  const touchStartX = useRef(0);
+
+  const goTo = (idx) => {
+    if (animating || idx === slide) return;
+    setAnimating(true);
+    setTimeout(() => { setSlide(idx); setAnimating(false); }, 250);
+  };
+
+  const next = () => {
+    if (slide < ONBOARDING_SLIDES.length - 1) goTo(slide + 1);
+    else onDone();
+  };
+
+  const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
+  const onTouchEnd = (e) => {
+    const dx = touchStartX.current - e.changedTouches[0].clientX;
+    if (dx > 50 && slide < ONBOARDING_SLIDES.length - 1) goTo(slide + 1);
+    if (dx < -50 && slide > 0) goTo(slide - 1);
+  };
+
+  const s = ONBOARDING_SLIDES[slide];
+
+  return (
+    <div style={{ minHeight: "100vh", background: s.bg, display: "flex", flexDirection: "column", transition: "background 0.4s ease", overflow: "hidden", position: "relative" }}
+      onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+
+      {/* Skip button */}
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "52px 24px 0" }}>
+        <button style={{ background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 20, padding: "8px 16px", color: "rgba(255,255,255,0.7)", fontSize: 13, fontFamily: font.body, fontWeight: 600, cursor: "pointer" }}
+          onClick={onDone}>Skip</button>
+      </div>
+
+      {/* Background decoration */}
+      <div style={{ position: "absolute", width: 320, height: 320, borderRadius: "50%", background: `${s.accent}15`, top: -60, right: -80, transition: "all 0.4s" }} />
+      <div style={{ position: "absolute", width: 200, height: 200, borderRadius: "50%", background: `${s.accent}10`, bottom: 120, left: -60, transition: "all 0.4s" }} />
+
+      {/* Content */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "0 36px", opacity: animating ? 0 : 1, transition: "opacity 0.25s ease" }}>
+        {/* Illustration */}
+        <div style={{ width: 140, height: 140, borderRadius: 40, background: `linear-gradient(135deg, ${s.accent}30, ${s.accent}10)`, border: `2px solid ${s.accent}40`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 40, boxShadow: `0 20px 60px ${s.accent}25` }}>
+          <span style={{ fontSize: 64 }}>{s.emoji}</span>
+        </div>
+
+        <h2 style={{ fontFamily: font.display, fontWeight: 800, fontSize: 28, color: C.white, textAlign: "center", marginBottom: 16, lineHeight: 1.2, letterSpacing: "-0.5px" }}>{s.title}</h2>
+        <p style={{ fontFamily: font.body, fontSize: 15, color: "rgba(255,255,255,0.6)", textAlign: "center", lineHeight: 1.6, maxWidth: 300 }}>{s.desc}</p>
+      </div>
+
+      {/* Bottom */}
+      <div style={{ padding: "0 28px 52px", display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* Dots */}
+        <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+          {ONBOARDING_SLIDES.map((_, i) => (
+            <div key={i} onClick={() => goTo(i)} style={{ height: 8, width: i === slide ? 28 : 8, borderRadius: 4, background: i === slide ? s.accent : "rgba(255,255,255,0.25)", transition: "all 0.3s ease", cursor: "pointer" }} />
+          ))}
+        </div>
+
+        {/* Button */}
+        <button style={{ width: "100%", padding: "16px", borderRadius: 16, border: "none", cursor: "pointer", fontFamily: font.display, fontWeight: 700, fontSize: 16, background: slide === ONBOARDING_SLIDES.length - 1 ? `linear-gradient(135deg, ${C.primary}, #6D28D9)` : "rgba(255,255,255,0.15)", color: "white", backdropFilter: "blur(8px)", boxShadow: slide === ONBOARDING_SLIDES.length - 1 ? "0 8px 24px rgba(124,58,237,0.4)" : "none", transition: "all 0.3s" }}
+          onClick={next}>
+          {slide === ONBOARDING_SLIDES.length - 1 ? "Get Started 🎓" : "Next →"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Auth Screen ───────────────────────────────────────────────
 function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState("login");
@@ -1522,11 +1648,23 @@ function AdminPage({ user }) {
 export default function App() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showSplash, setShowSplash] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [page, setPage] = useState("home");
   const [selectedAssoc, setSelectedAssoc] = useState(null);
   const [notifCount, setNotifCount] = useState(0);
 
   const ADMIN_EMAILS = ["asantegideon060@gmail.com"];
+
+  // Splash screen — show for 2 seconds then check if first visit
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+      const seen = localStorage.getItem("harmony_onboarded");
+      if (!seen) setShowOnboarding(true);
+    }, 2200);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (fireUser) => {
@@ -1544,6 +1682,15 @@ export default function App() {
     });
     return unsub;
   }, []);
+
+  if (showSplash) return <SplashScreen />;
+
+  if (showOnboarding) return (
+    <OnboardingScreen onDone={() => {
+      localStorage.setItem("harmony_onboarded", "true");
+      setShowOnboarding(false);
+    }} />
+  );
 
   if (loading) return (
     <div style={{ minHeight: "100vh", background: `linear-gradient(135deg, ${C.primaryDark}, #4C1D95)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
