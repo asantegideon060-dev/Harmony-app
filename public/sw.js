@@ -29,4 +29,3 @@ self.addEventListener("push", e => {
     vibrate: [200, 100, 200],
   }));
 });
-
