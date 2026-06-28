@@ -1346,7 +1346,6 @@ function CreatePostModal({ user, assocProfile, onClose }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isPublic, setIsPublic] = useState(true);
   const [error, setError] = useState("");
-  const fileInputRef = useRef(null);
 
   const handleFile = (e) => {
     const f = e.target.files[0];
@@ -1413,28 +1412,39 @@ function CreatePostModal({ user, assocProfile, onClose }) {
         </div>
 
         {(type === "image" || type === "video" || type === "event_flyer") && (
-          <div style={{ border: `2px dashed ${preview ? C.primary : C.border}`, borderRadius: 14, marginBottom: 14, overflow: "hidden", cursor: "pointer", height: 180, position: "relative", background: C.surface }}
-            onClick={() => fileInputRef.current?.click()}>
-            {preview ? (
-              type === "video"
-                ? <video src={preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                : <img src={preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          <div style={{ marginBottom: 14 }}>
+            {!preview ? (
+              <div>
+                <label htmlFor="mediaFileInput" style={{ display: "block", border: `2px dashed ${C.primary}`, borderRadius: 14, height: 160, cursor: "pointer", background: C.surface, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                  <span style={{ fontSize: 44 }}>{type === "video" ? "🎬" : "📸"}</span>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.primary, fontFamily: font.display }}>
+                      Tap here to select {type === "video" ? "video" : "image"}
+                    </div>
+                    {type === "video" && <div style={{ fontSize: 12, color: C.textMuted, marginTop: 4 }}>MP4 or MOV · Max 50MB</div>}
+                  </div>
+                </label>
+                <input
+                  id="mediaFileInput"
+                  type="file"
+                  accept={type === "video" ? "video/mp4,video/quicktime,video/mov,video/*" : "image/jpeg,image/png,image/gif,image/*"}
+                  style={{ display: "none" }}
+                  onChange={handleFile}
+                />
+              </div>
             ) : (
-              <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, color: C.textMuted }}>
-                <span style={{ fontSize: 40 }}>{type === "video" ? "🎬" : "📸"}</span>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Tap to select {type === "video" ? "video" : "image"}</div>
-                  {type === "video" && <div style={{ fontSize: 11, color: C.textMuted, marginTop: 4 }}>MP4, MOV · Max 50MB</div>}
+              <div style={{ position: "relative", borderRadius: 14, overflow: "hidden", height: 200, background: "#000" }}>
+                {type === "video"
+                  ? <video src={preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} controls playsInline />
+                  : <img src={preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                }
+                <button style={{ position: "absolute", top: 10, right: 10, background: "rgba(0,0,0,0.7)", border: "none", borderRadius: "50%", width: 32, height: 32, cursor: "pointer", color: "white", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}
+                  onClick={() => { setFile(null); setPreview(""); }}>✕</button>
+                <div style={{ position: "absolute", bottom: 8, left: 10, background: "rgba(0,0,0,0.6)", borderRadius: 8, padding: "3px 10px", color: "white", fontSize: 11, fontWeight: 600 }}>
+                  {type === "video" ? "🎬 Video selected" : "📸 Image selected"}
                 </div>
               </div>
             )}
-            {preview && (
-              <button style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.6)", border: "none", borderRadius: "50%", width: 28, height: 28, cursor: "pointer", color: "white", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center" }}
-                onClick={e => { e.stopPropagation(); setFile(null); setPreview(""); }}>✕</button>
-            )}
-            <input ref={fileInputRef} type="file"
-              accept={type === "video" ? "video/mp4,video/quicktime,video/*" : "image/*"}
-              style={{ display: "none" }} onChange={handleFile} />
           </div>
         )}
 
