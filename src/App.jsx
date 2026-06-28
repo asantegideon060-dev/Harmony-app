@@ -1,0 +1,1527 @@
+import { useState, useEffect, useRef, useCallback } from "react";
+import { initializeApp } from "firebase/app";
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  onAuthStateChanged, signOut, updateProfile,
+} from "firebase/auth";
+import {
+  getFirestore, collection, doc, addDoc, setDoc, getDoc, getDocs,
+  onSnapshot, query, where, orderBy, limit, serverTimestamp,
+  updateDoc, increment, arrayUnion, arrayRemove, deleteDoc,
+} from "firebase/firestore";
+
+// ── Firebase Config ────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyCrxQj-ps-w8yjbGEiNfeodcDkgDsYVAeg",
+  authDomain: "harmony-app-39299.firebaseapp.com",
+  projectId: "harmony-app-39299",
+  storageBucket: "harmony-app-39299.firebasestorage.app",
+  messagingSenderId: "232841464057",
+  appId: "1:232841464057:web:2e74e1fe08e0576de8fa28",
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const CLOUDINARY_CLOUD = "dxmmsq0gq";
+const CLOUDINARY_PRESET = "harmony";
+
+// ── Design Tokens ──────────────────────────────────────────────
+const C = {
+  primary: "#7C3AED",
+  primaryDark: "#1E1B4B",
+  primaryLight: "#EDE9FE",
+  accent: "#F59E0B",
+  success: "#10B981",
+  error: "#EF4444",
+  text: "#1E1B4B",
+  textMuted: "#6B7280",
+  bg: "#F8F7FF",
+  white: "#FFFFFF",
+  border: "#E5E7EB",
+  card: "#FFFFFF",
+  surface: "#F3F4F6",
+};
+
+const font = { display: "'Sora', sans-serif", body: "'Inter', sans-serif" };
+
+// ── Shared Styles ──────────────────────────────────────────────
+const S = {
+  page: { padding: "16px 16px 90px", maxWidth: 480, margin: "0 auto", minHeight: "100vh", background: C.bg },
+  card: { background: C.white, borderRadius: 16, boxShadow: "0 2px 12px rgba(124,58,237,0.07)", overflow: "hidden" },
+  input: { width: "100%", padding: "12px 16px", borderRadius: 12, border: `1.5px solid ${C.border}`, fontSize: 14, fontFamily: font.body, outline: "none", boxSizing: "border-box", background: C.white, color: C.text },
+  btn: (v = "primary") => ({
+    display: "inline-flex", alignItems: "center", justifyContent: "center",
+    padding: "12px 20px", borderRadius: 12, border: "none", cursor: "pointer",
+    fontFamily: font.body, fontWeight: 600, fontSize: 14, transition: "all 0.2s",
+    ...(v === "primary" ? { background: `linear-gradient(135deg, ${C.primary}, #6D28D9)`, color: C.white, boxShadow: "0 4px 14px rgba(124,58,237,0.35)" }
+      : v === "outline" ? { background: "transparent", color: C.primary, border: `1.5px solid ${C.primary}` }
+      : v === "ghost" ? { background: "transparent", color: C.textMuted, padding: "8px 12px" }
+      : { background: C.surface, color: C.text }),
+  }),
+  label: { fontSize: 13, fontWeight: 600, color: C.textMuted, marginBottom: 6, display: "block", fontFamily: font.body },
+  sectionTitle: { fontFamily: font.display, fontWeight: 800, fontSize: 20, color: C.text, marginBottom: 4 },
+  modal: { position: "fixed", inset: 0, background: "rgba(30,27,75,0.5)", backdropFilter: "blur(4px)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" },
+  modalBox: { background: C.white, borderRadius: "24px 24px 0 0", padding: 24, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" },
+  avatar: (size = 44) => ({ width: size, height: size, borderRadius: "50%", objectFit: "cover", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }),
+  tag: { display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: C.primaryLight, color: C.primary },
+};
+
+// ── Helpers ───────────────────────────────────────────────────
+const timeAgo = (ts) => {
+  if (!ts) return "";
+  const t = ts.toMillis ? ts.toMillis() : new Date(ts).getTime();
+  const d = Math.floor((Date.now() - t) / 1000);
+  if (d < 60) return "just now";
+  if (d < 3600) return `${Math.floor(d / 60)}m ago`;
+  if (d < 86400) return `${Math.floor(d / 3600)}h ago`;
+  return `${Math.floor(d / 86400)}d ago`;
+};
+
+const uploadMedia = async (file, resourceType = "image") => {
+  const data = new FormData();
+  data.append("file", file);
+  data.append("upload_preset", CLOUDINARY_PRESET);
+  data.append("cloud_name", CLOUDINARY_CLOUD);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/${resourceType}/upload`, { method: "POST", body: data });
+  const result = await res.json();
+  return result.secure_url;
+};
+
+const CATEGORIES = ["Academic", "Religious", "Sports", "Leadership", "Arts & Culture", "Volunteer", "Entrepreneurship", "Departmental", "Social"];
+
+// ── Register Service Worker ────────────────────────────────────
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// COMPONENTS
+// ══════════════════════════════════════════════════════════════
+
+// ── Logo ──────────────────────────────────────────────────────
+function HarmonyLogo({ size = 28 }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ width: size, height: size, borderRadius: "50%", background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+          <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+        </svg>
+      </div>
+      <span style={{ fontFamily: font.display, fontWeight: 800, fontSize: size * 0.75, color: C.primaryDark, letterSpacing: "-0.5px" }}>Harmony</span>
+    </div>
+  );
+}
+
+// ── Auth Screen ───────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+  const [mode, setMode] = useState("login");
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "student" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handle = async () => {
+    setError(""); setLoading(true);
+    try {
+      if (mode === "login") {
+        const { user } = await signInWithEmailAndPassword(auth, form.email, form.password);
+        const snap = await getDoc(doc(db, "users", user.uid));
+        onAuth({ uid: user.uid, ...snap.data() });
+      } else {
+        const { user } = await createUserWithEmailAndPassword(auth, form.email, form.password);
+        await updateProfile(user, { displayName: form.name });
+        const userData = {
+          name: form.name, email: form.email, role: form.role,
+          createdAt: serverTimestamp(), followers: 0, following: 0,
+          bio: "", photoURL: "", approved: form.role === "student",
+        };
+        await setDoc(doc(db, "users", user.uid), userData);
+        if (form.role === "association") {
+          await setDoc(doc(db, "associations", user.uid), {
+            name: form.name, ownerId: user.uid, email: form.email,
+            approved: false, createdAt: serverTimestamp(),
+            category: "Academic", followers: 0, posts: 0,
+            description: "", logoURL: "", coverURL: "",
+            location: "", contactEmail: form.email,
+          });
+        }
+        onAuth({ uid: user.uid, ...userData });
+      }
+    } catch (e) { setError(e.message.replace("Firebase: ", "").replace(/\(auth.*\)/, "")); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${C.primaryDark} 0%, #312E81 50%, #4C1D95 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      {/* Hero */}
+      <div style={{ textAlign: "center", marginBottom: 40 }}>
+        <div style={{ width: 72, height: 72, borderRadius: "50%", background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", boxShadow: "0 8px 32px rgba(124,58,237,0.4)" }}>
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+          </svg>
+        </div>
+        <h1 style={{ fontFamily: font.display, fontWeight: 800, fontSize: 36, color: C.white, margin: 0, letterSpacing: "-1px" }}>Harmony</h1>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontFamily: font.body, fontSize: 14, marginTop: 6 }}>Connecting Students to Campus Communities</p>
+      </div>
+
+      {/* Card */}
+      <div style={{ background: C.white, borderRadius: 24, padding: 28, width: "100%", maxWidth: 380, boxShadow: "0 24px 64px rgba(0,0,0,0.3)" }}>
+        {/* Tabs */}
+        <div style={{ display: "flex", background: C.surface, borderRadius: 12, padding: 4, marginBottom: 24 }}>
+          {["login", "register"].map(m => (
+            <button key={m} style={{ flex: 1, padding: "9px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: font.body, fontWeight: 600, fontSize: 13, transition: "all 0.2s", background: mode === m ? C.white : "transparent", color: mode === m ? C.primary : C.textMuted, boxShadow: mode === m ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}
+              onClick={() => setMode(m)}>
+              {m === "login" ? "Sign In" : "Join Now"}
+            </button>
+          ))}
+        </div>
+
+        {error && <div style={{ background: "#FEF2F2", color: C.error, padding: "10px 14px", borderRadius: 10, fontSize: 13, marginBottom: 16, fontFamily: font.body }}>{error}</div>}
+
+        {mode === "register" && (
+          <>
+            <label style={S.label}>Full Name</label>
+            <input style={{ ...S.input, marginBottom: 14 }} placeholder="Your full name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+            <label style={S.label}>I am a</label>
+            <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+              {["student", "association"].map(r => (
+                <button key={r} style={{ flex: 1, padding: "10px", borderRadius: 10, border: `2px solid ${form.role === r ? C.primary : C.border}`, background: form.role === r ? C.primaryLight : C.white, color: form.role === r ? C.primary : C.textMuted, fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: font.body, textTransform: "capitalize" }}
+                  onClick={() => setForm({ ...form, role: r })}>
+                  {r === "student" ? "👨‍🎓 Student" : "🏛️ Association"}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <label style={S.label}>Email</label>
+        <input style={{ ...S.input, marginBottom: 14 }} type="email" placeholder="your@email.com" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
+        <label style={S.label}>Password</label>
+        <input style={{ ...S.input, marginBottom: 20 }} type="password" placeholder="••••••••" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} onKeyDown={e => e.key === "Enter" && handle()} />
+
+        <button style={{ ...S.btn(), width: "100%", opacity: loading ? 0.7 : 1 }} onClick={handle} disabled={loading}>
+          {loading ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Top Nav ───────────────────────────────────────────────────
+function TopNav({ user, page, setPage, notifCount }) {
+  return (
+    <div style={{ position: "sticky", top: 0, zIndex: 100, background: C.white, borderBottom: `1px solid ${C.border}`, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", maxWidth: 480, margin: "0 auto" }}>
+      <HarmonyLogo size={24} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <button style={{ ...S.btn("ghost"), position: "relative", padding: "8px" }} onClick={() => setPage("notifications")}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={page === "notifications" ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          {notifCount > 0 && <div style={{ position: "absolute", top: 4, right: 4, width: 16, height: 16, borderRadius: "50%", background: C.error, color: "white", fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{notifCount}</div>}
+        </button>
+        <button style={{ ...S.btn("ghost"), padding: "6px" }} onClick={() => setPage("messages")}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={page === "messages" ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Bottom Nav ─────────────────────────────────────────────────
+function BottomNav({ page, setPage, user }) {
+  const tabs = [
+    { id: "home", label: "Home", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg> },
+    { id: "explore", label: "Explore", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><polygon points="5,3 19,12 5,21"/></svg> },
+    { id: "events", label: "Events", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
+    { id: "search", label: "Discover", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg> },
+    { id: "profile", label: "Profile", icon: (active) => <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? C.primary : "none"} stroke={active ? C.primary : C.textMuted} strokeWidth="2" strokeLinecap="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+  ];
+  return (
+    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, background: C.white, borderTop: `1px solid ${C.border}`, display: "flex", maxWidth: 480, margin: "0 auto" }}>
+      {tabs.map(t => (
+        <button key={t.id} style={{ flex: 1, padding: "10px 4px 6px", background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }} onClick={() => setPage(t.id)}>
+          {t.icon(page === t.id)}
+          <span style={{ fontSize: 10, fontFamily: font.body, fontWeight: page === t.id ? 700 : 500, color: page === t.id ? C.primary : C.textMuted }}>{t.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Association Card ───────────────────────────────────────────
+function AssocCard({ assoc, onClick, compact }) {
+  return (
+    <div style={{ ...S.card, cursor: "pointer", transition: "transform 0.15s", ...(compact ? { minWidth: 160, flexShrink: 0 } : {}) }} onClick={onClick}>
+      <div style={{ height: compact ? 80 : 100, background: `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`, position: "relative", overflow: "hidden" }}>
+        {assoc.coverURL ? <img src={assoc.coverURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ position: "absolute", inset: 0, opacity: 0.3, backgroundImage: "radial-gradient(circle at 30% 50%, rgba(255,255,255,0.2) 0%, transparent 60%)" }} />}
+        <div style={{ position: "absolute", bottom: -20, left: 14 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, border: `3px solid ${C.white}`, overflow: "hidden", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {assoc.logoURL ? <img src={assoc.logoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 20 }}>🏛️</span>}
+          </div>
+        </div>
+        {assoc.category && <div style={{ position: "absolute", top: 8, right: 8, background: "rgba(0,0,0,0.4)", borderRadius: 20, padding: "3px 8px", color: "white", fontSize: 10, fontWeight: 600, backdropFilter: "blur(4px)" }}>{assoc.category}</div>}
+      </div>
+      <div style={{ padding: compact ? "26px 12px 12px" : "28px 14px 14px" }}>
+        <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: compact ? 13 : 15, color: C.text, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{assoc.name}</div>
+        {!compact && <div style={{ fontSize: 12, color: C.textMuted, fontFamily: font.body, marginBottom: 8, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{assoc.description || "Campus organization"}</div>}
+        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: font.body }}>{assoc.followers || 0} followers</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Home Page ─────────────────────────────────────────────────
+function HomePage({ user, setPage, setSelectedAssoc }) {
+  const [featured, setFeatured] = useState([]);
+  const [trending, setTrending] = useState([]);
+  const [recent, setRecent] = useState([]);
+  const [search, setSearch] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const q = query(collection(db, "associations"), where("approved", "==", true), limit(10));
+    getDocs(q).then(snap => {
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setFeatured(all.filter(a => a.followers > 0).sort((a, b) => b.followers - a.followers).slice(0, 6));
+      setTrending(all.slice(0, 8));
+      setRecent([...all].reverse().slice(0, 6));
+    });
+  }, []);
+
+  const handleSearch = async (q) => {
+    setSearch(q);
+    if (!q.trim()) { setSearchResults([]); setSearching(false); return; }
+    setSearching(true);
+    const snap = await getDocs(collection(db, "associations"));
+    const all = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(a => a.approved);
+    const lower = q.toLowerCase();
+    setSearchResults(all.filter(a =>
+      a.name?.toLowerCase().includes(lower) ||
+      a.category?.toLowerCase().includes(lower) ||
+      a.description?.toLowerCase().includes(lower)
+    ));
+    setSearching(false);
+  };
+
+  const openAssoc = (a) => { setSelectedAssoc(a); setPage("assoc-profile"); };
+
+  return (
+    <div style={{ paddingBottom: 90, background: C.bg, minHeight: "100vh" }}>
+      {/* Header */}
+      <div style={{ background: `linear-gradient(135deg, ${C.primaryDark} 0%, #4C1D95 100%)`, padding: "20px 16px 28px" }}>
+        <p style={{ color: "rgba(255,255,255,0.7)", fontFamily: font.body, fontSize: 13, margin: "0 0 4px" }}>Good day 👋</p>
+        <h2 style={{ fontFamily: font.display, fontWeight: 800, fontSize: 22, color: C.white, margin: "0 0 16px", letterSpacing: "-0.5px" }}>
+          {user?.name?.split(" ")[0] || "Explorer"}
+        </h2>
+        {/* Search */}
+        <div style={{ position: "relative" }}>
+          <svg style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input style={{ ...S.input, paddingLeft: 40, background: "rgba(255,255,255,0.12)", border: "1.5px solid rgba(255,255,255,0.2)", color: C.white, fontSize: 14 }}
+            placeholder="Search associations, clubs..."
+            value={search}
+            onChange={e => handleSearch(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div style={{ padding: "0 16px" }}>
+        {/* Search Results */}
+        {search.trim() && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ ...S.sectionTitle, fontSize: 16, marginBottom: 12 }}>Search Results</div>
+            {searching ? <div style={{ textAlign: "center", padding: 24, color: C.textMuted }}>Searching...</div>
+              : searchResults.length === 0 ? <div style={{ textAlign: "center", padding: 24, color: C.textMuted }}>No associations found for "{search}"</div>
+              : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {searchResults.map(a => (
+                  <div key={a.id} style={{ ...S.card, padding: 14, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => openAssoc(a)}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, overflow: "hidden", background: C.primaryLight, flexShrink: 0 }}>
+                      {a.logoURL ? <img src={a.logoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🏛️</div>}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 14 }}>{a.name}</div>
+                      <div style={{ fontSize: 12, color: C.textMuted }}>{a.category} · {a.followers || 0} followers</div>
+                    </div>
+                  </div>
+                ))}
+              </div>}
+          </div>
+        )}
+
+        {!search.trim() && (
+          <>
+            {/* Categories */}
+            <div style={{ marginTop: 20, marginBottom: 6 }}>
+              <div style={{ ...S.sectionTitle, fontSize: 16 }}>Browse by Category</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none" }}>
+              {CATEGORIES.map(cat => (
+                <button key={cat} style={{ ...S.tag, whiteSpace: "nowrap", cursor: "pointer", border: "none", padding: "7px 14px", fontSize: 12 }}
+                  onClick={() => handleSearch(cat)}>{cat}</button>
+              ))}
+            </div>
+
+            {/* Featured */}
+            {featured.length > 0 && (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 20, marginBottom: 12 }}>
+                  <div style={S.sectionTitle}>⭐ Featured</div>
+                </div>
+                <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8, scrollbarWidth: "none" }}>
+                  {featured.map(a => <AssocCard key={a.id} assoc={a} compact onClick={() => openAssoc(a)} />)}
+                </div>
+              </>
+            )}
+
+            {/* Trending */}
+            {trending.length > 0 && (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, marginBottom: 12 }}>
+                  <div style={S.sectionTitle}>🔥 Trending</div>
+                  <button style={S.btn("ghost")} onClick={() => setPage("search")}>See all</button>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {trending.slice(0, 5).map(a => (
+                    <div key={a.id} style={{ ...S.card, padding: 14, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={() => openAssoc(a)}>
+                      <div style={{ width: 52, height: 52, borderRadius: 14, overflow: "hidden", background: C.primaryLight, flexShrink: 0 }}>
+                        {a.logoURL ? <img src={a.logoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>🏛️</div>}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15 }}>{a.name}</div>
+                        <div style={{ fontSize: 12, color: C.textMuted, fontFamily: font.body }}>{a.category}</div>
+                        <div style={{ fontSize: 12, color: C.textMuted }}>{a.followers || 0} followers</div>
+                      </div>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {trending.length === 0 && (
+              <div style={{ textAlign: "center", padding: "60px 24px" }}>
+                <div style={{ fontSize: 56, marginBottom: 12 }}>🏛️</div>
+                <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 18, marginBottom: 8, color: C.text }}>No associations yet</div>
+                <div style={{ color: C.textMuted, fontSize: 14 }}>Associations will appear here once approved.</div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Explore (TikTok-style) ────────────────────────────────────
+function ExplorePage({ user }) {
+  const [videos, setVideos] = useState([]);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [liked, setLiked] = useState({});
+  const [following, setFollowing] = useState({});
+  const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [muted, setMuted] = useState(true);
+  const videoRef = useRef(null);
+  const containerRef = useRef(null);
+  const touchStartY = useRef(0);
+
+  useEffect(() => {
+    const q = query(collection(db, "posts"), where("type", "==", "video"), where("public", "==", true), orderBy("createdAt", "desc"), limit(20));
+    const unsub = onSnapshot(q, snap => setVideos(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return unsub;
+  }, []);
+
+  const current = videos[currentIdx];
+
+  const handleLike = async () => {
+    if (!current || !user) return;
+    const ref = doc(db, "posts", current.id);
+    if (liked[current.id]) {
+      await updateDoc(ref, { likes: increment(-1) });
+      setLiked(p => ({ ...p, [current.id]: false }));
+    } else {
+      await updateDoc(ref, { likes: increment(1) });
+      setLiked(p => ({ ...p, [current.id]: true }));
+    }
+  };
+
+  const handleFollow = async () => {
+    if (!current || !user) return;
+    const assocId = current.assocId;
+    const ref = doc(db, "associations", assocId);
+    if (following[assocId]) {
+      await updateDoc(ref, { followers: increment(-1) });
+      setFollowing(p => ({ ...p, [assocId]: false }));
+    } else {
+      await updateDoc(ref, { followers: increment(1) });
+      setFollowing(p => ({ ...p, [assocId]: true }));
+      await addDoc(collection(db, "notifications"), {
+        toUserId: assocId, type: "follow", message: `${user.name} started following you`,
+        createdAt: serverTimestamp(), read: false,
+      });
+    }
+  };
+
+  const loadComments = async (postId) => {
+    const q = query(collection(db, "posts", postId, "comments"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
+
+  const postComment = async () => {
+    if (!newComment.trim() || !current) return;
+    await addDoc(collection(db, "posts", current.id, "comments"), {
+      text: newComment, userId: user.uid, userName: user.name,
+      userPhoto: user.photoURL || "", createdAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, "posts", current.id), { comments: increment(1) });
+    setNewComment("");
+    loadComments(current.id);
+  };
+
+  const onTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
+  const onTouchEnd = (e) => {
+    const dy = touchStartY.current - e.changedTouches[0].clientY;
+    if (Math.abs(dy) < 50) return;
+    if (dy > 0 && currentIdx < videos.length - 1) setCurrentIdx(i => i + 1);
+    if (dy < 0 && currentIdx > 0) setCurrentIdx(i => i - 1);
+  };
+
+  if (videos.length === 0) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <div style={{ fontSize: 56 }}>🎬</div>
+        <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 18, color: "white" }}>No videos yet</div>
+        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", padding: "0 32px" }}>Associations will share videos here. Follow some associations to see their content!</div>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: "fixed", inset: 0, background: "#000", overflow: "hidden" }} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {current && (
+        <>
+          {current.mediaURL && (
+            <video ref={videoRef} key={current.id} src={current.mediaURL} style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              autoPlay loop muted={muted} playsInline />
+          )}
+          <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%, rgba(0,0,0,0.2) 100%)" }} />
+
+          {/* Right actions */}
+          <div style={{ position: "absolute", right: 14, bottom: 120, display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+            {/* Avatar + Follow */}
+            <div style={{ position: "relative", marginBottom: 4 }}>
+              <div style={{ width: 46, height: 46, borderRadius: "50%", border: "2px solid white", overflow: "hidden", background: "#333" }}>
+                {current.assocLogo ? <img src={current.assocLogo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🏛️</div>}
+              </div>
+              {current.assocId !== user?.uid && (
+                <button onClick={handleFollow} style={{ position: "absolute", bottom: -10, left: "50%", transform: "translateX(-50%)", width: 22, height: 22, borderRadius: "50%", background: following[current.assocId] ? "#22C55E" : C.primary, border: "2px solid white", cursor: "pointer", color: "white", fontWeight: 900, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {following[current.assocId] ? "✓" : "+"}
+                </button>
+              )}
+            </div>
+
+            {[
+              { icon: liked[current.id] ? "❤️" : "🤍", count: current.likes || 0, action: handleLike },
+              { icon: "💬", count: current.comments || 0, action: () => { setShowComments(true); loadComments(current.id); } },
+              { icon: "↗️", count: "", action: () => navigator.share?.({ title: current.assocName, url: window.location.href }) },
+            ].map((b, i) => (
+              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+                <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 28 }} onClick={b.action}>{b.icon}</button>
+                {b.count !== "" && <span style={{ color: "white", fontSize: 12, fontWeight: 700 }}>{b.count}</span>}
+              </div>
+            ))}
+
+            <button style={{ background: "rgba(255,255,255,0.15)", backdropFilter: "blur(4px)", border: "none", borderRadius: "50%", width: 42, height: 42, cursor: "pointer", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setMuted(!muted)}>
+              {muted ? "🔇" : "🔊"}
+            </button>
+          </div>
+
+          {/* Bottom info */}
+          <div style={{ position: "absolute", bottom: 90, left: 14, right: 80 }}>
+            <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, color: "white", marginBottom: 4 }}>{current.assocName}</div>
+            <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, fontFamily: font.body, lineHeight: 1.4 }}>{current.caption}</div>
+          </div>
+
+          {/* Scroll indicators */}
+          <div style={{ position: "absolute", right: 4, top: "40%", display: "flex", flexDirection: "column", gap: 4 }}>
+            {videos.map((_, i) => (
+              <div key={i} style={{ width: 3, height: i === currentIdx ? 18 : 5, borderRadius: 3, background: i === currentIdx ? "white" : "rgba(255,255,255,0.3)", transition: "all 0.3s", cursor: "pointer" }} onClick={() => setCurrentIdx(i)} />
+            ))}
+          </div>
+
+          {/* Comments Panel */}
+          {showComments && (
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(10,10,10,0.97)", borderRadius: "22px 22px 0 0", height: "65vh", display: "flex", flexDirection: "column", zIndex: 10 }}>
+              <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px" }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.2)" }} />
+              </div>
+              <div style={{ padding: "6px 20px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ color: "white", fontFamily: font.display, fontWeight: 700, fontSize: 15 }}>Comments</span>
+                <button style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 20, cursor: "pointer" }} onClick={() => setShowComments(false)}>✕</button>
+              </div>
+              <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+                {comments.length === 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60%", gap: 8 }}>
+                    <div style={{ fontSize: 40 }}>💬</div>
+                    <div style={{ color: "rgba(255,255,255,0.5)", fontFamily: font.display, fontWeight: 700 }}>Be the first to comment!</div>
+                  </div>
+                ) : comments.map(c => (
+                  <div key={c.id} style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+                    <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, overflow: "hidden" }}>
+                      {c.userPhoto ? <img src={c.userPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+                    </div>
+                    <div>
+                      <div style={{ color: "white", fontWeight: 700, fontSize: 13, marginBottom: 2 }}>{c.userName}</div>
+                      <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13 }}>{c.text}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: "10px 14px 24px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 10 }}>
+                <input style={{ ...S.input, flex: 1, background: "rgba(255,255,255,0.08)", color: "white", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 24 }}
+                  placeholder="Add a comment..." value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={e => e.key === "Enter" && postComment()} />
+                <button style={{ width: 40, height: 40, borderRadius: "50%", background: newComment.trim() ? C.primary : "rgba(255,255,255,0.1)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={postComment}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><polygon points="5,3 19,12 5,21"/></svg>
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Events Page ───────────────────────────────────────────────
+function EventsPage({ user, setPage, setSelectedAssoc }) {
+  const [events, setEvents] = useState([]);
+  const [saved, setSaved] = useState({});
+  const [filter, setFilter] = useState("upcoming");
+
+  useEffect(() => {
+    const q = query(collection(db, "events"), orderBy("date", "asc"));
+    const unsub = onSnapshot(q, snap => setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return unsub;
+  }, []);
+
+  const saveEvent = async (eventId) => {
+    setSaved(p => ({ ...p, [eventId]: !p[eventId] }));
+  };
+
+  const now = new Date();
+  const filtered = events.filter(e => {
+    const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+    return filter === "upcoming" ? d >= now : d < now;
+  });
+
+  return (
+    <div style={S.page}>
+      <div style={{ ...S.sectionTitle, marginBottom: 4 }}>Events</div>
+      <p style={{ color: C.textMuted, fontSize: 13, fontFamily: font.body, marginBottom: 16 }}>Campus events from all associations</p>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+        {["upcoming", "past"].map(f => (
+          <button key={f} style={{ ...S.btn(filter === f ? "primary" : "outline"), padding: "8px 18px", fontSize: 12, borderRadius: 20, textTransform: "capitalize" }} onClick={() => setFilter(f)}>{f}</button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 24px" }}>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>📅</div>
+          <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>No {filter} events</div>
+          <div style={{ color: C.textMuted, fontSize: 14 }}>Check back soon for upcoming events!</div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {filtered.map(e => {
+            const date = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+            return (
+              <div key={e.id} style={{ ...S.card }}>
+                {e.flyerURL && <img src={e.flyerURL} alt={e.title} style={{ width: "100%", height: 180, objectFit: "cover" }} />}
+                <div style={{ padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 16, color: C.text, marginBottom: 4 }}>{e.title}</div>
+                      <div style={{ fontSize: 12, color: C.primary, fontWeight: 600 }}>{e.assocName}</div>
+                    </div>
+                    <button style={{ background: "none", border: "none", cursor: "pointer", fontSize: 22 }} onClick={() => saveEvent(e.id)}>
+                      {saved[e.id] ? "🔖" : "🏷️"}
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.textMuted }}>
+                      <span>📅</span><span>{date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.textMuted }}>
+                      <span>🕐</span><span>{e.time || "TBA"}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.textMuted }}>
+                      <span>📍</span><span>{e.venue || "TBA"}</span>
+                    </div>
+                  </div>
+                  {e.description && <p style={{ fontSize: 13, color: C.textMuted, fontFamily: font.body, lineHeight: 1.5, margin: 0 }}>{e.description}</p>}
+                  <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                    <button style={{ ...S.btn("outline"), flex: 1, padding: "9px", fontSize: 12 }}
+                      onClick={() => navigator.share?.({ title: e.title, text: `${e.title} - ${date.toLocaleDateString()}`, url: window.location.href })}>
+                      Share
+                    </button>
+                    <button style={{ ...S.btn(), flex: 1, padding: "9px", fontSize: 12 }} onClick={() => saveEvent(e.id)}>
+                      {saved[e.id] ? "Saved ✓" : "Save Event"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Search / Discover ─────────────────────────────────────────
+function SearchPage({ user, setPage, setSelectedAssoc }) {
+  const [assocs, setAssocs] = useState([]);
+  const [query2, setQuery2] = useState("");
+  const [category, setCategory] = useState("All");
+
+  useEffect(() => {
+    const q = query(collection(db, "associations"), where("approved", "==", true));
+    const unsub = onSnapshot(q, snap => setAssocs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return unsub;
+  }, []);
+
+  const filtered = assocs.filter(a => {
+    const matchQ = !query2.trim() || a.name?.toLowerCase().includes(query2.toLowerCase()) || a.description?.toLowerCase().includes(query2.toLowerCase());
+    const matchCat = category === "All" || a.category === category;
+    return matchQ && matchCat;
+  });
+
+  return (
+    <div style={S.page}>
+      <div style={{ ...S.sectionTitle, marginBottom: 12 }}>Discover Associations</div>
+      <div style={{ position: "relative", marginBottom: 14 }}>
+        <svg style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)" }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.textMuted} strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input style={{ ...S.input, paddingLeft: 42 }} placeholder="Search by name, department..." value={query2} onChange={e => setQuery2(e.target.value)} />
+      </div>
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12, scrollbarWidth: "none" }}>
+        {["All", ...CATEGORIES].map(c => (
+          <button key={c} style={{ ...S.tag, whiteSpace: "nowrap", cursor: "pointer", border: "none", padding: "7px 14px", fontSize: 12, background: category === c ? C.primary : C.primaryLight, color: category === c ? "white" : C.primary }} onClick={() => setCategory(c)}>{c}</button>
+        ))}
+      </div>
+      {filtered.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 24px" }}>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>🔍</div>
+          <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>No results</div>
+          <div style={{ color: C.textMuted, fontSize: 14 }}>Try a different search or category.</div>
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 4 }}>
+          {filtered.map(a => <AssocCard key={a.id} assoc={a} compact onClick={() => { setSelectedAssoc(a); setPage("assoc-profile"); }} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Association Profile ────────────────────────────────────────
+function AssocProfilePage({ assoc, user, setPage }) {
+  const [fullAssoc, setFullAssoc] = useState(assoc);
+  const [posts, setPosts] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [following, setFollowing] = useState(false);
+  const [tab, setTab] = useState("posts");
+
+  useEffect(() => {
+    if (!assoc?.id) return;
+    getDoc(doc(db, "associations", assoc.id)).then(d => d.exists() && setFullAssoc({ id: d.id, ...d.data() }));
+    getDocs(query(collection(db, "posts"), where("assocId", "==", assoc.id), orderBy("createdAt", "desc"))).then(snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    getDocs(query(collection(db, "events"), where("assocId", "==", assoc.id))).then(snap => setEvents(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+  }, [assoc?.id]);
+
+  const toggleFollow = async () => {
+    if (!user || !assoc?.id) return;
+    const ref = doc(db, "associations", assoc.id);
+    if (following) {
+      await updateDoc(ref, { followers: increment(-1) });
+      setFollowing(false);
+    } else {
+      await updateDoc(ref, { followers: increment(1) });
+      setFollowing(true);
+    }
+  };
+
+  return (
+    <div style={{ paddingBottom: 90, background: C.bg, minHeight: "100vh" }}>
+      <button style={{ position: "absolute", top: 16, left: 16, zIndex: 10, background: "rgba(0,0,0,0.4)", border: "none", borderRadius: "50%", width: 36, height: 36, cursor: "pointer", color: "white", fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setPage("home")}>←</button>
+
+      {/* Cover */}
+      <div style={{ height: 160, background: `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`, position: "relative" }}>
+        {fullAssoc?.coverURL && <img src={fullAssoc.coverURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+      </div>
+
+      {/* Info */}
+      <div style={{ padding: "0 16px", position: "relative" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: -28 }}>
+          <div style={{ width: 72, height: 72, borderRadius: 18, border: `4px solid ${C.white}`, overflow: "hidden", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 14px rgba(0,0,0,0.15)" }}>
+            {fullAssoc?.logoURL ? <img src={fullAssoc.logoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 30 }}>🏛️</span>}
+          </div>
+          <div style={{ display: "flex", gap: 8, paddingBottom: 4 }}>
+            {user?.uid !== assoc?.id && (
+              <button style={{ ...S.btn(following ? "outline" : "primary"), padding: "9px 18px", fontSize: 13 }} onClick={toggleFollow}>
+                {following ? "Following ✓" : "+ Follow"}
+              </button>
+            )}
+            <button style={{ ...S.btn("outline"), padding: "9px 14px", fontSize: 13 }} onClick={() => setPage("messages")}>
+              💬
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12, marginBottom: 16 }}>
+          <h2 style={{ fontFamily: font.display, fontWeight: 800, fontSize: 20, color: C.text, margin: "0 0 4px" }}>{fullAssoc?.name}</h2>
+          {fullAssoc?.category && <span style={S.tag}>{fullAssoc.category}</span>}
+          {fullAssoc?.description && <p style={{ fontSize: 13, color: C.textMuted, fontFamily: font.body, marginTop: 8, lineHeight: 1.5 }}>{fullAssoc.description}</p>}
+
+          <div style={{ display: "flex", gap: 20, marginTop: 12 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 18, color: C.primary }}>{fullAssoc?.followers || 0}</div>
+              <div style={{ fontSize: 11, color: C.textMuted }}>Followers</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 18, color: C.primary }}>{posts.length}</div>
+              <div style={{ fontSize: 11, color: C.textMuted }}>Posts</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 18, color: C.primary }}>{events.length}</div>
+              <div style={{ fontSize: 11, color: C.textMuted }}>Events</div>
+            </div>
+          </div>
+
+          {/* Contact info */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 12 }}>
+            {fullAssoc?.location && <div style={{ fontSize: 13, color: C.textMuted, display: "flex", gap: 8 }}><span>📍</span><span>{fullAssoc.location}</span></div>}
+            {fullAssoc?.contactEmail && <div style={{ fontSize: 13, color: C.textMuted, display: "flex", gap: 8 }}><span>📧</span><span>{fullAssoc.contactEmail}</span></div>}
+            {fullAssoc?.contactPhone && <div style={{ fontSize: 13, color: C.textMuted, display: "flex", gap: 8 }}><span>📞</span><span>{fullAssoc.contactPhone}</span></div>}
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", borderBottom: `2px solid ${C.border}`, marginBottom: 16 }}>
+          {["posts", "events", "about"].map(t => (
+            <button key={t} style={{ flex: 1, padding: "10px 4px", background: "none", border: "none", cursor: "pointer", fontFamily: font.body, fontWeight: 600, fontSize: 13, color: tab === t ? C.primary : C.textMuted, borderBottom: `2px solid ${tab === t ? C.primary : "transparent"}`, marginBottom: -2, textTransform: "capitalize" }} onClick={() => setTab(t)}>{t}</button>
+          ))}
+        </div>
+
+        {tab === "posts" && (
+          posts.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>No posts yet</div> :
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {posts.map(p => <PostCard key={p.id} post={p} user={user} />)}
+          </div>
+        )}
+
+        {tab === "events" && (
+          events.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>No events yet</div> :
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {events.map(e => {
+              const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+              return (
+                <div key={e.id} style={{ ...S.card, padding: 14 }}>
+                  <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15 }}>{e.title}</div>
+                  <div style={{ fontSize: 13, color: C.textMuted, marginTop: 4 }}>📅 {d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · {e.time}</div>
+                  <div style={{ fontSize: 13, color: C.textMuted }}>📍 {e.venue}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === "about" && (
+          <div style={{ ...S.card, padding: 16 }}>
+            {fullAssoc?.executives?.length > 0 && (
+              <>
+                <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, marginBottom: 10 }}>Executive Members</div>
+                {fullAssoc.executives.map((ex, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: i < fullAssoc.executives.length - 1 ? `1px solid ${C.border}` : "none" }}>
+                    <span style={{ fontWeight: 600, fontSize: 14 }}>{ex.name}</span>
+                    <span style={{ fontSize: 13, color: C.primary }}>{ex.role}</span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Post Card ─────────────────────────────────────────────────
+function PostCard({ post, user }) {
+  const [liked, setLiked] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+
+  const handleLike = async () => {
+    await updateDoc(doc(db, "posts", post.id), { likes: increment(liked ? -1 : 1) });
+    setLiked(!liked);
+  };
+
+  const loadComments = async () => {
+    const q = query(collection(db, "posts", post.id, "comments"), orderBy("createdAt", "desc"));
+    const snap = await getDocs(q);
+    setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
+
+  const postComment = async () => {
+    if (!newComment.trim()) return;
+    await addDoc(collection(db, "posts", post.id, "comments"), {
+      text: newComment, userId: user?.uid, userName: user?.name,
+      createdAt: serverTimestamp(),
+    });
+    await updateDoc(doc(db, "posts", post.id), { comments: increment(1) });
+    setNewComment("");
+    loadComments();
+  };
+
+  return (
+    <div style={S.card}>
+      <div style={{ padding: "12px 14px 8px", display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 10, overflow: "hidden", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {post.assocLogo ? <img src={post.assocLogo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>🏛️</span>}
+        </div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 13, fontFamily: font.display }}>{post.assocName}</div>
+          <div style={{ fontSize: 11, color: C.textMuted }}>{timeAgo(post.createdAt)}</div>
+        </div>
+        {post.type && <div style={{ marginLeft: "auto", ...S.tag, fontSize: 10 }}>{post.type}</div>}
+      </div>
+      {post.mediaURL && (
+        post.type === "video"
+          ? <video src={post.mediaURL} style={{ width: "100%", maxHeight: 300, objectFit: "cover" }} controls />
+          : <img src={post.mediaURL} alt="" style={{ width: "100%", maxHeight: 320, objectFit: "cover" }} />
+      )}
+      <div style={{ padding: "10px 14px" }}>
+        {post.caption && <p style={{ fontSize: 14, color: C.text, fontFamily: font.body, lineHeight: 1.5, margin: "0 0 10px" }}>{post.caption}</p>}
+        <div style={{ display: "flex", gap: 16 }}>
+          <button style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, color: liked ? C.error : C.textMuted, fontSize: 13, fontWeight: 600, fontFamily: font.body }} onClick={handleLike}>
+            <span style={{ fontSize: 18 }}>{liked ? "❤️" : "🤍"}</span> {post.likes || 0}
+          </button>
+          <button style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, color: C.textMuted, fontSize: 13, fontWeight: 600, fontFamily: font.body }}
+            onClick={() => { setShowComments(!showComments); if (!showComments) loadComments(); }}>
+            <span style={{ fontSize: 18 }}>💬</span> {post.comments || 0}
+          </button>
+          <button style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, color: C.textMuted, fontSize: 13, fontFamily: font.body }}>
+            <span style={{ fontSize: 18 }}>↗️</span>
+          </button>
+        </div>
+        {showComments && (
+          <div style={{ marginTop: 12, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+            {comments.map(c => (
+              <div key={c.id} style={{ marginBottom: 8, fontSize: 13 }}>
+                <span style={{ fontWeight: 700 }}>{c.userName} </span>
+                <span style={{ color: C.textMuted }}>{c.text}</span>
+              </div>
+            ))}
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <input style={{ ...S.input, flex: 1, padding: "8px 12px", fontSize: 13 }} placeholder="Add a comment..." value={newComment} onChange={e => setNewComment(e.target.value)} onKeyDown={e => e.key === "Enter" && postComment()} />
+              <button style={{ ...S.btn(), padding: "8px 14px", fontSize: 12 }} onClick={postComment}>Post</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Profile Page ──────────────────────────────────────────────
+function ProfilePage({ user, setUser, setPage }) {
+  const [profile, setProfile] = useState(null);
+  const [assocProfile, setAssocProfile] = useState(null);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [posts, setPosts] = useState([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    getDoc(doc(db, "users", user.uid)).then(d => d.exists() && setProfile({ ...d.data() }));
+    if (user.role === "association") {
+      getDoc(doc(db, "associations", user.uid)).then(d => d.exists() && setAssocProfile({ id: d.id, ...d.data() }));
+      getDocs(query(collection(db, "posts"), where("assocId", "==", user.uid), orderBy("createdAt", "desc"))).then(snap => setPosts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    }
+  }, [user?.uid]);
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const url = await uploadMedia(file, "image");
+      await updateDoc(doc(db, "users", user.uid), { photoURL: url });
+      if (user.role === "association") await updateDoc(doc(db, "associations", user.uid), { logoURL: url });
+      setUser(u => ({ ...u, photoURL: url }));
+    } catch {}
+    setUploadingPhoto(false);
+    e.target.value = "";
+  };
+
+  return (
+    <div style={S.page}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div style={S.sectionTitle}>Profile</div>
+        <button style={S.btn("ghost")} onClick={() => signOut(auth)}>Sign out</button>
+      </div>
+
+      {/* Avatar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
+        <div style={{ position: "relative" }}>
+          <div style={{ width: 72, height: 72, borderRadius: "50%", overflow: "hidden", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", border: `3px solid ${C.primary}` }}>
+            {user?.photoURL ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 28 }}>👤</span>}
+          </div>
+          <input type="file" accept="image/*" style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", borderRadius: "50%" }} onChange={handlePhotoUpload} />
+          <div style={{ position: "absolute", bottom: 0, right: 0, width: 22, height: 22, borderRadius: "50%", background: C.primary, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="white"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </div>
+        </div>
+        <div>
+          <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 18 }}>{user?.name}</div>
+          <div style={{ fontSize: 12, color: C.textMuted, textTransform: "capitalize" }}>{user?.role}</div>
+          {user?.role === "association" && !assocProfile?.approved && (
+            <div style={{ background: "#FEF3C7", color: "#92400E", padding: "3px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, marginTop: 4 }}>⏳ Pending approval</div>
+          )}
+        </div>
+      </div>
+
+      {/* Association actions */}
+      {user?.role === "association" && assocProfile?.approved && (
+        <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+          <button style={{ ...S.btn(), flex: 1, fontSize: 13 }} onClick={() => setShowCreatePost(true)}>+ Post Content</button>
+          <button style={{ ...S.btn("outline"), flex: 1, fontSize: 13 }} onClick={() => setShowCreateEvent(true)}>+ Add Event</button>
+        </div>
+      )}
+
+      {user?.role === "association" && assocProfile && (
+        <div style={{ ...S.card, padding: 16, marginBottom: 16 }}>
+          <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Association Profile</div>
+          <AssocProfileEditor assocProfile={assocProfile} userId={user.uid} onUpdate={setAssocProfile} />
+        </div>
+      )}
+
+      {user?.role === "association" && posts.length > 0 && (
+        <div>
+          <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Your Posts</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {posts.map(p => <PostCard key={p.id} post={p} user={user} />)}
+          </div>
+        </div>
+      )}
+
+      {showCreatePost && <CreatePostModal user={user} assocProfile={assocProfile} onClose={() => setShowCreatePost(false)} />}
+      {showCreateEvent && <CreateEventModal user={user} assocProfile={assocProfile} onClose={() => setShowCreateEvent(false)} />}
+    </div>
+  );
+}
+
+// ── Association Profile Editor ────────────────────────────────
+function AssocProfileEditor({ assocProfile, userId, onUpdate }) {
+  const [form, setForm] = useState({
+    description: assocProfile?.description || "",
+    location: assocProfile?.location || "",
+    contactEmail: assocProfile?.contactEmail || "",
+    contactPhone: assocProfile?.contactPhone || "",
+    category: assocProfile?.category || "Academic",
+  });
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    await updateDoc(doc(db, "associations", userId), form);
+    onUpdate(p => ({ ...p, ...form }));
+    setSaving(false); setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const handleCover = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    setUploadingCover(true);
+    const url = await uploadMedia(file, "image");
+    await updateDoc(doc(db, "associations", userId), { coverURL: url });
+    onUpdate(p => ({ ...p, coverURL: url }));
+    setUploadingCover(false);
+    e.target.value = "";
+  };
+
+  return (
+    <div>
+      <label style={S.label}>Cover Image</label>
+      <div style={{ border: `2px dashed ${C.border}`, borderRadius: 12, height: 80, marginBottom: 12, overflow: "hidden", position: "relative", cursor: "pointer", background: C.surface }}>
+        {assocProfile?.coverURL ? <img src={assocProfile.coverURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: C.textMuted, fontSize: 13 }}>{uploadingCover ? "Uploading..." : "📷 Tap to upload cover"}</div>}
+        <input type="file" accept="image/*" style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} onChange={handleCover} />
+      </div>
+      <label style={S.label}>Category</label>
+      <select style={{ ...S.input, marginBottom: 12 }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+        {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+      </select>
+      <label style={S.label}>Description</label>
+      <textarea style={{ ...S.input, height: 80, resize: "vertical", marginBottom: 12 }} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Tell students about your association..." />
+      <label style={S.label}>Meeting Location</label>
+      <input style={{ ...S.input, marginBottom: 12 }} value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="e.g. New Site Block A, Room 101" />
+      <label style={S.label}>Contact Email</label>
+      <input style={{ ...S.input, marginBottom: 12 }} value={form.contactEmail} onChange={e => setForm({ ...form, contactEmail: e.target.value })} placeholder="association@university.edu" />
+      <label style={S.label}>Contact Phone</label>
+      <input style={{ ...S.input, marginBottom: 14 }} value={form.contactPhone} onChange={e => setForm({ ...form, contactPhone: e.target.value })} placeholder="+233 ..." />
+      <button style={{ ...S.btn(), width: "100%", opacity: saving ? 0.7 : 1 }} onClick={save} disabled={saving}>
+        {saved ? "✓ Saved!" : saving ? "Saving..." : "Save Profile"}
+      </button>
+    </div>
+  );
+}
+
+// ── Create Post Modal ─────────────────────────────────────────
+function CreatePostModal({ user, assocProfile, onClose }) {
+  const [caption, setCaption] = useState("");
+  const [type, setType] = useState("image");
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
+
+  const handleFile = (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+    setType(f.type.startsWith("video") ? "video" : "image");
+  };
+
+  const submit = async () => {
+    setUploading(true);
+    try {
+      let mediaURL = "";
+      if (file) mediaURL = await uploadMedia(file, type === "video" ? "video" : "image");
+      await addDoc(collection(db, "posts"), {
+        assocId: user.uid, assocName: assocProfile?.name || user.name,
+        assocLogo: assocProfile?.logoURL || "",
+        caption, mediaURL, type, public: isPublic,
+        likes: 0, comments: 0, shares: 0,
+        createdAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, "associations", user.uid), { posts: increment(1) });
+      onClose();
+    } catch (err) { alert("Upload failed: " + err.message); }
+    setUploading(false);
+  };
+
+  return (
+    <div style={S.modal} onClick={onClose}>
+      <div style={S.modalBox} onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 18, marginBottom: 16 }}>Create Post</div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+          {["image", "video", "announcement", "event_flyer"].map(t => (
+            <button key={t} style={{ ...S.tag, cursor: "pointer", border: "none", fontSize: 11, background: type === t ? C.primary : C.primaryLight, color: type === t ? "white" : C.primary }}
+              onClick={() => setType(t)}>{t}</button>
+          ))}
+        </div>
+
+        {(type === "image" || type === "video" || type === "event_flyer") && (
+          <div style={{ border: `2px dashed ${C.border}`, borderRadius: 12, marginBottom: 14, overflow: "hidden", cursor: "pointer", height: 160, position: "relative", background: C.surface }}>
+            {preview ? (type === "video" ? <video src={preview} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <img src={preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />) : <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, color: C.textMuted }}>
+              <span style={{ fontSize: 32 }}>📎</span><span style={{ fontSize: 13 }}>Tap to select {type}</span>
+            </div>}
+            <input type="file" accept={type === "video" ? "video/*" : "image/*"} style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} onChange={handleFile} />
+          </div>
+        )}
+
+        <textarea style={{ ...S.input, height: 80, resize: "vertical", marginBottom: 12 }} placeholder="Write a caption..." value={caption} onChange={e => setCaption(e.target.value)} />
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} id="public" />
+          <label htmlFor="public" style={{ fontSize: 13, color: C.textMuted, fontFamily: font.body }}>Public (appears in Explore feed)</label>
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button style={{ ...S.btn(), flex: 1, opacity: uploading ? 0.7 : 1 }} onClick={submit} disabled={uploading}>{uploading ? "Uploading..." : "Post"}</button>
+          <button style={{ ...S.btn("outline"), flex: 1 }} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Create Event Modal ────────────────────────────────────────
+function CreateEventModal({ user, assocProfile, onClose }) {
+  const [form, setForm] = useState({ title: "", date: "", time: "", venue: "", description: "" });
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  const submit = async () => {
+    if (!form.title || !form.date) { alert("Title and date are required"); return; }
+    setUploading(true);
+    try {
+      let flyerURL = "";
+      if (file) flyerURL = await uploadMedia(file, "image");
+      await addDoc(collection(db, "events"), {
+        ...form, date: new Date(form.date), flyerURL,
+        assocId: user.uid, assocName: assocProfile?.name || user.name,
+        createdAt: serverTimestamp(),
+      });
+      onClose();
+    } catch (err) { alert("Error: " + err.message); }
+    setUploading(false);
+  };
+
+  return (
+    <div style={S.modal} onClick={onClose}>
+      <div style={S.modalBox} onClick={e => e.stopPropagation()}>
+        <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 18, marginBottom: 16 }}>Create Event</div>
+        <label style={S.label}>Event Title *</label>
+        <input style={{ ...S.input, marginBottom: 12 }} placeholder="e.g. Annual Dinner Night" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+        <label style={S.label}>Date *</label>
+        <input type="date" style={{ ...S.input, marginBottom: 12 }} value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+        <label style={S.label}>Time</label>
+        <input type="time" style={{ ...S.input, marginBottom: 12 }} value={form.time} onChange={e => setForm({ ...form, time: e.target.value })} />
+        <label style={S.label}>Venue</label>
+        <input style={{ ...S.input, marginBottom: 12 }} placeholder="e.g. Great Hall" value={form.venue} onChange={e => setForm({ ...form, venue: e.target.value })} />
+        <label style={S.label}>Description</label>
+        <textarea style={{ ...S.input, height: 70, marginBottom: 12 }} placeholder="What's this event about?" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+        <label style={S.label}>Event Flyer (optional)</label>
+        <input type="file" accept="image/*" style={{ ...S.input, marginBottom: 16, padding: "10px" }} onChange={e => setFile(e.target.files[0])} />
+        <div style={{ display: "flex", gap: 10 }}>
+          <button style={{ ...S.btn(), flex: 1, opacity: uploading ? 0.7 : 1 }} onClick={submit} disabled={uploading}>{uploading ? "Creating..." : "Create Event"}</button>
+          <button style={{ ...S.btn("outline"), flex: 1 }} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Notifications ─────────────────────────────────────────────
+function NotificationsPage({ user }) {
+  const [notifs, setNotifs] = useState([]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const q = query(collection(db, "notifications"), where("toUserId", "==", user.uid), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(q, snap => setNotifs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return unsub;
+  }, [user?.uid]);
+
+  const markRead = (id) => setDoc(doc(db, "notifications", id), { read: true }, { merge: true });
+
+  return (
+    <div style={S.page}>
+      <div style={{ ...S.sectionTitle, marginBottom: 16 }}>Notifications</div>
+      {notifs.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "60px 24px" }}>
+          <div style={{ fontSize: 56, marginBottom: 12 }}>🔔</div>
+          <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>All caught up!</div>
+          <div style={{ color: C.textMuted, fontSize: 14 }}>Notifications from associations you follow will appear here.</div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {notifs.map(n => (
+            <div key={n.id} style={{ ...S.card, padding: 14, display: "flex", gap: 12, alignItems: "flex-start", background: n.read ? C.white : `${C.primary}08`, borderLeft: n.read ? "none" : `3px solid ${C.primary}`, cursor: "pointer" }} onClick={() => markRead(n.id)}>
+              <div style={{ fontSize: 24 }}>{n.type === "follow" ? "👤" : n.type === "event" ? "📅" : "🔔"}</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: n.read ? 500 : 700, fontFamily: font.body }}>{n.message}</div>
+                <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{timeAgo(n.createdAt)}</div>
+              </div>
+              {!n.read && <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.primary, flexShrink: 0, marginTop: 4 }} />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Messages ──────────────────────────────────────────────────
+function MessagesPage({ user }) {
+  const [convos, setConvos] = useState([]);
+  const [selected, setSelected] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [newMsg, setNewMsg] = useState("");
+  const [newChat, setNewChat] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const endRef = useRef(null);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const q = query(collection(db, "conversations"), where("participants", "array-contains", user.uid));
+    const unsub = onSnapshot(q, snap => setConvos(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    return unsub;
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!selected) return;
+    const q = query(collection(db, "conversations", selected.id, "messages"), orderBy("createdAt"));
+    const unsub = onSnapshot(q, snap => {
+      setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    });
+    return unsub;
+  }, [selected]);
+
+  const send = async () => {
+    if (!newMsg.trim() || !selected) return;
+    const text = newMsg.trim(); setNewMsg("");
+    await addDoc(collection(db, "conversations", selected.id, "messages"), { text, senderId: user.uid, senderName: user.name, createdAt: serverTimestamp() });
+    await setDoc(doc(db, "conversations", selected.id), { lastMessage: text, lastMessageAt: serverTimestamp() }, { merge: true });
+  };
+
+  const startChat = async () => {
+    if (!recipientEmail.trim()) return;
+    const snap = await getDocs(query(collection(db, "users"), where("email", "==", recipientEmail.trim())));
+    if (snap.empty) { alert("User not found"); return; }
+    const other = { id: snap.docs[0].id, ...snap.docs[0].data() };
+    const existing = convos.find(c => c.participants?.includes(other.id));
+    if (existing) { setSelected(existing); setNewChat(false); return; }
+    const ref = await addDoc(collection(db, "conversations"), {
+      participants: [user.uid, other.id],
+      participantNames: [user.name, other.name],
+      lastMessage: "", lastMessageAt: serverTimestamp(),
+    });
+    setSelected({ id: ref.id, participants: [user.uid, other.id], participantNames: [user.name, other.name] });
+    setNewChat(false); setRecipientEmail("");
+  };
+
+  return (
+    <div style={S.page}>
+      {!selected ? (
+        <>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <div style={S.sectionTitle}>Messages</div>
+            <button style={{ ...S.btn(), padding: "8px 14px", fontSize: 13 }} onClick={() => setNewChat(true)}>+ New</button>
+          </div>
+          {convos.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "60px 24px" }}>
+              <div style={{ fontSize: 56, marginBottom: 12 }}>💬</div>
+              <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 18, marginBottom: 8 }}>No messages yet</div>
+              <div style={{ color: C.textMuted, fontSize: 14 }}>Send inquiries directly to associations.</div>
+            </div>
+          ) : convos.map(c => (
+            <div key={c.id} style={{ ...S.card, padding: 14, display: "flex", gap: 12, alignItems: "center", marginBottom: 8, cursor: "pointer" }} onClick={() => setSelected(c)}>
+              <div style={{ width: 46, height: 46, borderRadius: "50%", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>🏛️</div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontFamily: font.display }}>{c.participantNames?.filter(n => n !== user.name).join(", ")}</div>
+                <div style={{ fontSize: 13, color: C.textMuted }}>{c.lastMessage || "Start conversation"}</div>
+              </div>
+            </div>
+          ))}
+        </>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 140px)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
+            <button style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer" }} onClick={() => setSelected(null)}>←</button>
+            <div style={{ fontFamily: font.display, fontWeight: 700 }}>{selected.participantNames?.filter(n => n !== user.name).join(", ")}</div>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 4 }}>
+            {messages.map(m => (
+              <div key={m.id} style={{ display: "flex", justifyContent: m.senderId === user.uid ? "flex-end" : "flex-start" }}>
+                <div style={{ background: m.senderId === user.uid ? C.primary : C.surface, color: m.senderId === user.uid ? "white" : C.text, borderRadius: m.senderId === user.uid ? "16px 16px 2px 16px" : "16px 16px 16px 2px", padding: "10px 14px", maxWidth: "72%", fontSize: 13, fontFamily: font.body }}>{m.text}</div>
+              </div>
+            ))}
+            <div ref={endRef} />
+          </div>
+          <div style={{ display: "flex", gap: 8, paddingTop: 12 }}>
+            <input style={{ ...S.input, flex: 1, borderRadius: 24 }} placeholder="Type a message..." value={newMsg} onChange={e => setNewMsg(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} />
+            <button style={{ ...S.btn(), borderRadius: "50%", width: 44, height: 44, padding: 0, flexShrink: 0 }} onClick={send}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9" fill="white"/></svg>
+            </button>
+          </div>
+        </div>
+      )}
+      {newChat && (
+        <div style={S.modal} onClick={() => setNewChat(false)}>
+          <div style={S.modalBox} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 18, marginBottom: 16 }}>New Message</div>
+            <label style={S.label}>Search by email</label>
+            <input style={{ ...S.input, marginBottom: 16 }} placeholder="association@email.com" value={recipientEmail} onChange={e => setRecipientEmail(e.target.value)} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button style={{ ...S.btn(), flex: 1 }} onClick={startChat}>Start Chat</button>
+              <button style={{ ...S.btn("outline"), flex: 1 }} onClick={() => setNewChat(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Admin Dashboard ───────────────────────────────────────────
+function AdminPage({ user }) {
+  const [pendingAssocs, setPendingAssocs] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [allPosts, setAllPosts] = useState([]);
+  const [tab, setTab] = useState("pending");
+
+  useEffect(() => {
+    getDocs(query(collection(db, "associations"), where("approved", "==", false))).then(snap => setPendingAssocs(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    getDocs(collection(db, "users")).then(snap => setAllUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+    getDocs(query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(20))).then(snap => setAllPosts(snap.docs.map(d => ({ id: d.id, ...d.data() }))));
+  }, []);
+
+  const approve = async (id) => {
+    await updateDoc(doc(db, "associations", id), { approved: true });
+    await updateDoc(doc(db, "users", id), { approved: true });
+    setPendingAssocs(p => p.filter(a => a.id !== id));
+  };
+
+  const reject = async (id) => {
+    await deleteDoc(doc(db, "associations", id));
+    setPendingAssocs(p => p.filter(a => a.id !== id));
+  };
+
+  const removePost = async (id) => {
+    await deleteDoc(doc(db, "posts", id));
+    setAllPosts(p => p.filter(post => post.id !== id));
+  };
+
+  return (
+    <div style={S.page}>
+      <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 22, marginBottom: 4 }}>Admin Dashboard</div>
+      <div style={{ color: C.textMuted, fontSize: 13, marginBottom: 20 }}>Harmony Management</div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
+        {[{ num: pendingAssocs.length, label: "Pending", color: C.accent }, { num: allUsers.length, label: "Users", color: C.primary }, { num: allPosts.length, label: "Posts", color: C.success }].map(s => (
+          <div key={s.label} style={{ ...S.card, padding: 14, textAlign: "center" }}>
+            <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 22, color: s.color }}>{s.num}</div>
+            <div style={{ fontSize: 11, color: C.textMuted }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        {["pending", "users", "posts"].map(t => (
+          <button key={t} style={{ ...S.btn(tab === t ? "primary" : "outline"), padding: "8px 14px", fontSize: 12, textTransform: "capitalize" }} onClick={() => setTab(t)}>{t}</button>
+        ))}
+      </div>
+
+      {tab === "pending" && (
+        pendingAssocs.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: C.textMuted }}>No pending associations ✓</div> :
+        pendingAssocs.map(a => (
+          <div key={a.id} style={{ ...S.card, padding: 14, marginBottom: 10 }}>
+            <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15 }}>{a.name}</div>
+            <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 4 }}>{a.email}</div>
+            <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 12 }}>{a.category}</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button style={{ ...S.btn(), flex: 1, fontSize: 13, background: C.success, boxShadow: "none" }} onClick={() => approve(a.id)}>✓ Approve</button>
+              <button style={{ ...S.btn("outline"), flex: 1, fontSize: 13, color: C.error, borderColor: C.error }} onClick={() => reject(a.id)}>✕ Reject</button>
+            </div>
+          </div>
+        ))
+      )}
+
+      {tab === "users" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {allUsers.map(u => (
+            <div key={u.id} style={{ ...S.card, padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{u.name}</div>
+                <div style={{ fontSize: 12, color: C.textMuted }}>{u.email} · {u.role}</div>
+              </div>
+              <div style={{ ...S.tag, background: u.role === "association" ? C.primaryLight : C.surface, color: u.role === "association" ? C.primary : C.textMuted, fontSize: 10 }}>{u.role}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "posts" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {allPosts.map(p => (
+            <div key={p.id} style={{ ...S.card, padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{p.assocName}</div>
+                <div style={{ fontSize: 12, color: C.textMuted }}>{p.caption?.slice(0, 50) || "No caption"}</div>
+              </div>
+              <button style={{ background: C.error, border: "none", borderRadius: 8, padding: "6px 12px", color: "white", fontSize: 12, cursor: "pointer" }} onClick={() => removePost(p.id)}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
+// MAIN APP
+// ══════════════════════════════════════════════════════════════
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState("home");
+  const [selectedAssoc, setSelectedAssoc] = useState(null);
+  const [notifCount, setNotifCount] = useState(0);
+
+  const ADMIN_EMAILS = ["asantegideon060@gmail.com"];
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (fireUser) => {
+      if (fireUser) {
+        const snap = await getDoc(doc(db, "users", fireUser.uid));
+        if (snap.exists()) {
+          const data = { uid: fireUser.uid, ...snap.data() };
+          setUser(data);
+          // Notif count
+          const q = query(collection(db, "notifications"), where("toUserId", "==", fireUser.uid), where("read", "==", false));
+          onSnapshot(q, s => setNotifCount(s.size));
+        }
+      } else setUser(null);
+      setLoading(false);
+    });
+    return unsub;
+  }, []);
+
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: `linear-gradient(135deg, ${C.primaryDark}, #4C1D95)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+      <div style={{ width: 64, height: 64, borderRadius: "50%", background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></svg>
+      </div>
+      <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 28, color: "white" }}>Harmony</div>
+    </div>
+  );
+
+  if (!user) return <AuthScreen onAuth={setUser} />;
+
+  const isAdmin = ADMIN_EMAILS.includes(user.email);
+
+  const renderPage = () => {
+    if (page === "assoc-profile" && selectedAssoc) return <AssocProfilePage assoc={selectedAssoc} user={user} setPage={setPage} />;
+    if (page === "notifications") return <NotificationsPage user={user} />;
+    if (page === "messages") return <MessagesPage user={user} />;
+    if (isAdmin && page === "admin") return <AdminPage user={user} />;
+    switch (page) {
+      case "home": return <HomePage user={user} setPage={setPage} setSelectedAssoc={setSelectedAssoc} />;
+      case "explore": return <ExplorePage user={user} />;
+      case "events": return <EventsPage user={user} setPage={setPage} setSelectedAssoc={setSelectedAssoc} />;
+      case "search": return <SearchPage user={user} setPage={setPage} setSelectedAssoc={setSelectedAssoc} />;
+      case "profile": return <ProfilePage user={user} setUser={setUser} setPage={setPage} />;
+      default: return <HomePage user={user} setPage={setPage} setSelectedAssoc={setSelectedAssoc} />;
+    }
+  };
+
+  const hideNav = page === "explore";
+
+  return (
+    <div style={{ fontFamily: font.body, maxWidth: 480, margin: "0 auto", position: "relative" }}>
+      {!hideNav && <TopNav user={user} page={page} setPage={setPage} notifCount={notifCount} />}
+
+      {isAdmin && page !== "explore" && (
+        <div style={{ display: "flex", justifyContent: "center", padding: "8px 16px 0" }}>
+          <button style={{ ...S.btn("outline"), padding: "6px 16px", fontSize: 12 }} onClick={() => setPage("admin")}>⚙️ Admin Dashboard</button>
+        </div>
+      )}
+
+      {renderPage()}
+
+      {!hideNav && <BottomNav page={page} setPage={setPage} user={user} />}
+    </div>
+  );
+}
+
