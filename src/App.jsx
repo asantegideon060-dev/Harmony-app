@@ -62,8 +62,8 @@ const S = {
   }),
   label: { fontSize: 13, fontWeight: 600, color: C.textMuted, marginBottom: 6, display: "block", fontFamily: font.body },
   sectionTitle: { fontFamily: font.display, fontWeight: 800, fontSize: 20, color: C.text, marginBottom: 4 },
-  modal: { position: "fixed", inset: 0, background: "rgba(30,27,75,0.5)", backdropFilter: "blur(4px)", zIndex: 200, display: "flex", alignItems: "flex-end", justifyContent: "center" },
-  modalBox: { background: C.white, borderRadius: "24px 24px 0 0", padding: 24, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" },
+  modal: { position: "fixed", inset: 0, background: "rgba(30,27,75,0.5)", backdropFilter: "blur(4px)", zIndex: 300, display: "flex", alignItems: "flex-end", justifyContent: "center" },
+  modalBox: { background: C.white, borderRadius: "24px 24px 0 0", padding: 24, paddingBottom: 40, width: "100%", maxWidth: 480, maxHeight: "90vh", overflowY: "auto" },
   avatar: (size = 44) => ({ width: size, height: size, borderRadius: "50%", objectFit: "cover", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }),
   tag: { display: "inline-flex", alignItems: "center", padding: "4px 10px", borderRadius: 20, fontSize: 11, fontWeight: 600, background: C.primaryLight, color: C.primary },
 };
