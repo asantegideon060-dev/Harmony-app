@@ -625,10 +625,19 @@ function ExplorePage({ user }) {
   const touchStartY = useRef(0);
 
   useEffect(() => {
-    const q = query(collection(db, "posts"), where("type", "==", "video"), orderBy("createdAt", "desc"), limit(20));
+    // Fetch all recent posts and filter for those with video media
+    const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(50));
     const unsub = onSnapshot(q, snap => {
       const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setVideos(all); // show all videos regardless of public flag for now
+      // Show posts that are type video OR have a video mediaURL
+      const videoPosts = all.filter(p =>
+        p.type === "video" ||
+        (p.mediaURL && (
+          p.mediaURL.includes("/video/") ||
+          p.mediaURL.match(/\.(mp4|mov|webm|avi|mkv)/i)
+        ))
+      );
+      setVideos(videoPosts);
     });
     return unsub;
   }, []);
@@ -704,8 +713,24 @@ function ExplorePage({ user }) {
       {current && (
         <>
           {current.mediaURL && (
-            <video ref={videoRef} key={current.id} src={current.mediaURL} style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              autoPlay loop muted={muted} playsInline />
+            <video
+              ref={videoRef}
+              key={current.id}
+              src={current.mediaURL}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              autoPlay
+              loop
+              muted={muted}
+              playsInline
+              webkit-playsinline="true"
+              preload="auto"
+            />
+          )}
+          {!current.mediaURL && (
+            <div style={{ width: "100%", height: "100%", background: `linear-gradient(135deg, ${C.primaryDark}, ${C.primary})`, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
+              <span style={{ fontSize: 56 }}>📢</span>
+              <div style={{ color: "white", fontSize: 16, fontWeight: 700, textAlign: "center", padding: "0 24px" }}>{current.caption}</div>
+            </div>
           )}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%, rgba(0,0,0,0.2) 100%)" }} />
 
