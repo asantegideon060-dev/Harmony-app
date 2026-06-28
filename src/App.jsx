@@ -834,11 +834,26 @@ function AssocProfilePage({ assoc, user, setPage }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {events.map(e => {
               const d = e.date?.toDate ? e.date.toDate() : new Date(e.date);
+              const isOwner = user?.uid === assoc?.id;
               return (
                 <div key={e.id} style={{ ...S.card, padding: 14 }}>
-                  <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15 }}>{e.title}</div>
-                  <div style={{ fontSize: 13, color: C.textMuted, marginTop: 4 }}>📅 {d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · {e.time}</div>
-                  <div style={{ fontSize: 13, color: C.textMuted }}>📍 {e.venue}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15 }}>{e.title}</div>
+                      <div style={{ fontSize: 13, color: C.textMuted, marginTop: 4 }}>📅 {d.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} · {e.time}</div>
+                      <div style={{ fontSize: 13, color: C.textMuted }}>📍 {e.venue}</div>
+                    </div>
+                    {isOwner && (
+                      <button style={{ background: "#FEF2F2", border: "none", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                        onClick={async () => {
+                          if (!window.confirm("Delete this event?")) return;
+                          await deleteDoc(doc(db, "events", e.id));
+                          setEvents(ev => ev.filter(ev2 => ev2.id !== e.id));
+                        }}>
+                        <span style={{ fontSize: 16 }}>🗑️</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -871,10 +886,20 @@ function PostCard({ post, user }) {
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
+  const [deleted, setDeleted] = useState(false);
+
+  if (deleted) return null;
 
   const handleLike = async () => {
     await updateDoc(doc(db, "posts", post.id), { likes: increment(liked ? -1 : 1) });
     setLiked(!liked);
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Delete this post? This cannot be undone.")) return;
+    await deleteDoc(doc(db, "posts", post.id));
+    if (post.assocId) await updateDoc(doc(db, "associations", post.assocId), { posts: increment(-1) });
+    setDeleted(true);
   };
 
   const loadComments = async () => {
@@ -894,17 +919,24 @@ function PostCard({ post, user }) {
     loadComments();
   };
 
+  const isOwner = user?.uid === post.assocId;
+
   return (
     <div style={S.card}>
       <div style={{ padding: "12px 14px 8px", display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ width: 38, height: 38, borderRadius: 10, overflow: "hidden", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
           {post.assocLogo ? <img src={post.assocLogo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>🏛️</span>}
         </div>
-        <div>
+        <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 13, fontFamily: font.display }}>{post.assocName}</div>
           <div style={{ fontSize: 11, color: C.textMuted }}>{timeAgo(post.createdAt)}</div>
         </div>
-        {post.type && <div style={{ marginLeft: "auto", ...S.tag, fontSize: 10 }}>{post.type}</div>}
+        {post.type && <div style={{ ...S.tag, fontSize: 10 }}>{post.type}</div>}
+        {isOwner && (
+          <button onClick={handleDelete} style={{ background: "#FEF2F2", border: "none", borderRadius: 8, width: 32, height: 32, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }} title="Delete post">
+            <span style={{ fontSize: 16 }}>🗑️</span>
+          </button>
+        )}
       </div>
       {post.mediaURL && (
         post.type === "video"
@@ -1013,7 +1045,28 @@ function ProfilePage({ user, setUser, setPage }) {
 
       {user?.role === "association" && assocProfile && (
         <div style={{ ...S.card, padding: 16, marginBottom: 16 }}>
-          <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Association Profile</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15 }}>Association Profile</div>
+            <button
+              style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: 10, padding: "7px 12px", cursor: "pointer", color: C.error, fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}
+              onClick={async () => {
+                if (!window.confirm("⚠️ Delete your association permanently? All posts and data will be lost. This cannot be undone.")) return;
+                // Delete all posts
+                const postsSnap = await getDocs(query(collection(db, "posts"), where("assocId", "==", user.uid)));
+                await Promise.all(postsSnap.docs.map(d => deleteDoc(doc(db, "posts", d.id))));
+                // Delete all events
+                const eventsSnap = await getDocs(query(collection(db, "events"), where("assocId", "==", user.uid)));
+                await Promise.all(eventsSnap.docs.map(d => deleteDoc(doc(db, "events", d.id))));
+                // Delete association doc
+                await deleteDoc(doc(db, "associations", user.uid));
+                // Update user role back to student
+                await updateDoc(doc(db, "users", user.uid), { role: "student", approved: true });
+                setUser(u => ({ ...u, role: "student" }));
+                alert("Association deleted successfully.");
+              }}>
+              🗑️ Delete Association
+            </button>
+          </div>
           <AssocProfileEditor assocProfile={assocProfile} userId={user.uid} onUpdate={setAssocProfile} />
         </div>
       )}
