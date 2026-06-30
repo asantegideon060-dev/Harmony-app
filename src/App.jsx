@@ -777,13 +777,13 @@ function ExplorePage({ user }) {
             ))}
           </div>
 
-          {/* Comments Panel — bottom sheet, 65vh, video visible behind */}
+          {/* Comments Panel — bottom sheet, 65vh, covers bottom nav */}
           {showComments && (
             <>
               {/* Backdrop — top portion only, tap to close, video visible through it */}
-              <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: "65vh", maxWidth: 480, margin: "0 auto", zIndex: 290, background: "rgba(0,0,0,0.5)" }} onClick={() => setShowComments(false)} />
-              {/* Bottom sheet */}
-              <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(15,15,15,0.98)", borderRadius: "16px 16px 0 0", maxHeight: "65vh", height: "65vh", zIndex: 300, display: "flex", flexDirection: "column", boxShadow: "0 -8px 30px rgba(0,0,0,0.4)" }}>
+              <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: "65vh", maxWidth: 480, margin: "0 auto", zIndex: 999, background: "rgba(0,0,0,0.5)" }} onClick={() => setShowComments(false)} />
+              {/* Bottom sheet — sits above bottom nav (zIndex 1000 > nav's 200) */}
+              <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgb(15,15,15)", borderRadius: "16px 16px 0 0", height: "65vh", zIndex: 1000, display: "flex", flexDirection: "column", boxShadow: "0 -8px 30px rgba(0,0,0,0.5)" }}>
                 {/* Drag handle */}
                 <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", cursor: "pointer", flexShrink: 0 }} onClick={() => setShowComments(false)}>
                   <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.25)" }} />
@@ -798,7 +798,7 @@ function ExplorePage({ user }) {
                 </div>
 
                 {/* Scrollable comment list */}
-                <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", WebkitOverflowScrolling: "touch" }}>
+                <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 16px", WebkitOverflowScrolling: "touch" }}>
                   {comments.length === 0 ? (
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
                       <div style={{ fontSize: 40 }}>💬</div>
@@ -818,13 +818,13 @@ function ExplorePage({ user }) {
                   ))}
                 </div>
 
-                {/* Input anchored to bottom */}
-                <div style={{ padding: "10px 14px", paddingBottom: "calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 10, alignItems: "center", background: "rgba(15,15,15,0.98)", flexShrink: 0 }}>
+                {/* Input bar — sticky to bottom of sheet, always visible above keyboard */}
+                <div style={{ position: "sticky", bottom: 0, padding: "10px 14px", paddingBottom: "calc(12px + env(safe-area-inset-bottom, 12px))", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 10, alignItems: "center", background: "rgb(15,15,15)", flexShrink: 0 }}>
                   <div style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {user?.photoURL ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ color: "white", fontSize: 13 }}>👤</span>}
                   </div>
                   <input
-                    style={{ flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 22, padding: "10px 16px", color: "white", fontSize: 13, outline: "none", fontFamily: font.body }}
+                    style={{ flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 22, padding: "10px 16px", color: "white", fontSize: 13, outline: "none", fontFamily: font.body, WebkitAppearance: "none" }}
                     placeholder="Add a comment..."
                     value={newComment}
                     onChange={e => setNewComment(e.target.value)}
