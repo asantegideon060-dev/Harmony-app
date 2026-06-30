@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { initializeApp } from "firebase/app";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
@@ -611,6 +612,93 @@ function HomePage({ user, setPage, setSelectedAssoc }) {
 }
 
 // ── Explore (TikTok-style) ────────────────────────────────────
+// ── Comments Sheet (Portal — renders to document.body, escapes all stacking contexts) ──
+function CommentsSheet({ postCount, comments, newComment, setNewComment, user, onClose, onPost }) {
+  return createPortal(
+    <div style={{ position: "fixed", inset: 0, zIndex: 99999 }}>
+      {/* Backdrop — top 30%, video visible behind */}
+      <div
+        style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: "70vh", background: "rgba(0,0,0,0.6)" }}
+        onClick={onClose}
+      />
+      {/* Bottom sheet */}
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0,
+        maxWidth: 480, margin: "0 auto",
+        height: "70vh", maxHeight: "70vh",
+        background: "rgb(18,18,18)",
+        borderRadius: "16px 16px 0 0",
+        display: "flex", flexDirection: "column",
+        boxShadow: "0 -8px 30px rgba(0,0,0,0.5)",
+        overflow: "hidden",
+      }}>
+        {/* Drag handle */}
+        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", cursor: "pointer", flexShrink: 0 }} onClick={onClose}>
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.25)" }} />
+        </div>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 20px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", flexShrink: 0 }}>
+          <span style={{ color: "white", fontFamily: font.display, fontWeight: 800, fontSize: 15 }}>
+            💬 {postCount || 0} comments
+          </span>
+          <button style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "50%", width: 30, height: 30, color: "white", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={onClose}>✕</button>
+        </div>
+
+        {/* Scrollable comment list */}
+        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "14px 16px" }}>
+          {comments.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
+              <div style={{ fontSize: 40 }}>💬</div>
+              <div style={{ color: "rgba(255,255,255,0.6)", fontFamily: font.display, fontWeight: 700, fontSize: 14 }}>Be the first to comment!</div>
+              <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>Share your thoughts below</div>
+            </div>
+          ) : comments.map(c => (
+            <div key={c.id} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+              <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, overflow: "hidden" }}>
+                {c.userPhoto ? <img src={c.userPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ color: "white", fontWeight: 700, fontSize: 13, marginBottom: 3 }}>{c.userName}</div>
+                <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, lineHeight: 1.4 }}>{c.text}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Input bar — sticky bottom, TikTok style */}
+        <div style={{
+          position: "sticky", bottom: 0, flexShrink: 0,
+          display: "flex", alignItems: "center", gap: 10,
+          padding: "10px 14px",
+          paddingBottom: "calc(12px + env(safe-area-inset-bottom, 12px))",
+          background: "rgb(18,18,18)",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+        }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {user?.photoURL ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ color: "white", fontSize: 13 }}>👤</span>}
+          </div>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", background: "rgba(255,255,255,0.12)", borderRadius: 22, padding: "4px 6px 4px 16px" }}>
+            <input
+              style={{ flex: 1, background: "transparent", border: "none", color: "white", fontSize: 13, outline: "none", fontFamily: font.body, WebkitAppearance: "none" }}
+              placeholder="Add comment..."
+              value={newComment}
+              onChange={e => setNewComment(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && onPost()}
+            />
+            <span style={{ fontSize: 17, padding: "0 6px", opacity: 0.7 }}>😊</span>
+          </div>
+          <button style={{ width: 36, height: 36, borderRadius: "50%", background: newComment.trim() ? C.primary : "rgba(255,255,255,0.1)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.2s", boxShadow: newComment.trim() ? "0 4px 12px rgba(124,58,237,0.4)" : "none" }}
+            onClick={onPost}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9" fill="white"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function ExplorePage({ user }) {
   const [videos, setVideos] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -777,66 +865,17 @@ function ExplorePage({ user }) {
             ))}
           </div>
 
-          {/* Comments Panel — bottom sheet, 65vh, covers bottom nav */}
+          {/* Comments Sheet — rendered via portal, escapes all stacking contexts */}
           {showComments && (
-            <>
-              {/* Backdrop — top portion only, tap to close, video visible through it */}
-              <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: "65vh", maxWidth: 480, margin: "0 auto", zIndex: 999, background: "rgba(0,0,0,0.5)" }} onClick={() => setShowComments(false)} />
-              {/* Bottom sheet — sits above bottom nav (zIndex 1000 > nav's 200) */}
-              <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgb(15,15,15)", borderRadius: "16px 16px 0 0", height: "65vh", zIndex: 1000, display: "flex", flexDirection: "column", boxShadow: "0 -8px 30px rgba(0,0,0,0.5)" }}>
-                {/* Drag handle */}
-                <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", cursor: "pointer", flexShrink: 0 }} onClick={() => setShowComments(false)}>
-                  <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.25)" }} />
-                </div>
-                {/* Sticky header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 20px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", flexShrink: 0 }}>
-                  <span style={{ color: "white", fontFamily: font.display, fontWeight: 800, fontSize: 15 }}>
-                    💬 Comments · {current?.comments || 0}
-                  </span>
-                  <button style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "50%", width: 30, height: 30, color: "white", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                    onClick={() => setShowComments(false)}>✕</button>
-                </div>
-
-                {/* Scrollable comment list */}
-                <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "14px 16px", WebkitOverflowScrolling: "touch" }}>
-                  {comments.length === 0 ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
-                      <div style={{ fontSize: 40 }}>💬</div>
-                      <div style={{ color: "rgba(255,255,255,0.6)", fontFamily: font.display, fontWeight: 700, fontSize: 14 }}>Be the first to comment!</div>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>Share your thoughts below</div>
-                    </div>
-                  ) : comments.map(c => (
-                    <div key={c.id} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-                      <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, overflow: "hidden" }}>
-                        {c.userPhoto ? <img src={c.userPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ color: "white", fontWeight: 700, fontSize: 13, marginBottom: 3 }}>{c.userName}</div>
-                        <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, lineHeight: 1.4 }}>{c.text}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Input bar — sticky to bottom of sheet, always visible above keyboard */}
-                <div style={{ position: "sticky", bottom: 0, padding: "10px 14px", paddingBottom: "calc(12px + env(safe-area-inset-bottom, 12px))", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 10, alignItems: "center", background: "rgb(15,15,15)", flexShrink: 0 }}>
-                  <div style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {user?.photoURL ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ color: "white", fontSize: 13 }}>👤</span>}
-                  </div>
-                  <input
-                    style={{ flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 22, padding: "10px 16px", color: "white", fontSize: 13, outline: "none", fontFamily: font.body, WebkitAppearance: "none" }}
-                    placeholder="Add a comment..."
-                    value={newComment}
-                    onChange={e => setNewComment(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && postComment()}
-                  />
-                  <button style={{ width: 38, height: 38, borderRadius: "50%", background: newComment.trim() ? C.primary : "rgba(255,255,255,0.1)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.2s", boxShadow: newComment.trim() ? "0 4px 12px rgba(124,58,237,0.4)" : "none" }}
-                    onClick={postComment}>
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9" fill="white"/></svg>
-                  </button>
-                </div>
-              </div>
-            </>
+            <CommentsSheet
+              postCount={current?.comments || 0}
+              comments={comments}
+              newComment={newComment}
+              setNewComment={setNewComment}
+              user={user}
+              onClose={() => setShowComments(false)}
+              onPost={postComment}
+            />
           )}
         </>
       )}
