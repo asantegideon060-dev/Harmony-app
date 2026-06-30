@@ -1278,6 +1278,7 @@ function ProfilePage({ user, setUser, setPage }) {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showCreateEvent, setShowCreateEvent] = useState(false);
+  const [showCreateAssoc, setShowCreateAssoc] = useState(false);
   const [posts, setPosts] = useState([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
@@ -1340,6 +1341,22 @@ function ProfilePage({ user, setUser, setPage }) {
         </div>
       )}
 
+      {/* Become an association — for students who don't currently have one */}
+      {user?.role === "student" && (
+        <div style={{ ...S.card, padding: 18, marginBottom: 20, background: `linear-gradient(135deg, ${C.primaryLight}, ${C.white})`, border: `1px solid ${C.primary}25` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+            <span style={{ fontSize: 28 }}>🏛️</span>
+            <div>
+              <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15 }}>Run an association?</div>
+              <div style={{ fontSize: 12, color: C.textMuted }}>Create or re-create your association profile</div>
+            </div>
+          </div>
+          <button style={{ ...S.btn(), width: "100%", fontSize: 13 }} onClick={() => setShowCreateAssoc(true)}>
+            + Create Association
+          </button>
+        </div>
+      )}
+
       {user?.role === "association" && assocProfile && (
         <div style={{ ...S.card, padding: 16, marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -1379,6 +1396,16 @@ function ProfilePage({ user, setUser, setPage }) {
 
       {showCreatePost && <CreatePostModal user={user} assocProfile={assocProfile} onClose={() => setShowCreatePost(false)} />}
       {showCreateEvent && <CreateEventModal user={user} assocProfile={assocProfile} onClose={() => setShowCreateEvent(false)} />}
+      {showCreateAssoc && (
+        <CreateAssocModal
+          user={user}
+          onClose={() => setShowCreateAssoc(false)}
+          onCreated={() => {
+            setUser(u => ({ ...u, role: "association", approved: false }));
+            getDoc(doc(db, "associations", user.uid)).then(d => d.exists() && setAssocProfile({ id: d.id, ...d.data() }));
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1586,6 +1613,67 @@ function CreatePostModal({ user, assocProfile, onClose }) {
 }
 
 // ── Create Event Modal ────────────────────────────────────────
+// ── Create/Become Association Modal ───────────────────────────
+function CreateAssocModal({ user, onClose, onCreated }) {
+  const [form, setForm] = useState({ name: "", category: "Academic", description: "", contactEmail: user?.email || "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    if (!form.name.trim()) { setError("Please enter your association name."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      await setDoc(doc(db, "associations", user.uid), {
+        name: form.name.trim(), ownerId: user.uid, email: user.email,
+        approved: false, createdAt: serverTimestamp(),
+        category: form.category, followers: 0, posts: 0,
+        description: form.description.trim(), logoURL: "", coverURL: "",
+        location: "", contactEmail: form.contactEmail.trim() || user.email,
+      });
+      await updateDoc(doc(db, "users", user.uid), { role: "association", approved: false });
+      onCreated();
+      onClose();
+    } catch (err) { setError(err.message); }
+    setLoading(false);
+  };
+
+  return (
+    <div style={S.modal} onClick={onClose}>
+      <div style={S.modalBox} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+          <span style={{ fontSize: 26 }}>🏛️</span>
+          <div style={{ fontFamily: font.display, fontWeight: 800, fontSize: 18 }}>Create Association</div>
+        </div>
+        {error && <div style={{ background: "#FEF2F2", color: C.error, padding: "10px 14px", borderRadius: 10, fontSize: 13, marginBottom: 14 }}>{error}</div>}
+
+        <label style={S.label}>Association Name *</label>
+        <input style={{ ...S.input, marginBottom: 12 }} placeholder="e.g. Computer Science Society" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
+
+        <label style={S.label}>Category</label>
+        <select style={{ ...S.input, marginBottom: 12 }} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+          {CATEGORIES.map(c => <option key={c}>{c}</option>)}
+        </select>
+
+        <label style={S.label}>Description</label>
+        <textarea style={{ ...S.input, height: 80, resize: "vertical", marginBottom: 12 }} placeholder="What does your association do?" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
+
+        <label style={S.label}>Contact Email</label>
+        <input style={{ ...S.input, marginBottom: 16 }} placeholder="association@email.com" value={form.contactEmail} onChange={e => setForm({ ...form, contactEmail: e.target.value })} />
+
+        <div style={{ background: "#FEF3C7", color: "#92400E", padding: "10px 14px", borderRadius: 10, fontSize: 12, marginBottom: 16 }}>
+          ⏳ Your association will need admin approval before it appears publicly.
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button style={{ ...S.btn(), flex: 1, opacity: loading ? 0.7 : 1 }} onClick={submit} disabled={loading}>{loading ? "Creating..." : "Create Association"}</button>
+          <button style={{ ...S.btn("outline"), flex: 1 }} onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CreateEventModal({ user, assocProfile, onClose }) {
   const [form, setForm] = useState({ title: "", date: "", time: "", venue: "", description: "" });
   const [file, setFile] = useState(null);
