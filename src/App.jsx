@@ -777,59 +777,62 @@ function ExplorePage({ user }) {
             ))}
           </div>
 
-          {/* Comments Panel — full screen */}
+          {/* Comments Panel — bottom sheet, 65vh, video visible behind */}
           {showComments && (
             <>
-              {/* Full screen dark backdrop */}
-              <div style={{ position: "fixed", inset: 0, zIndex: 290, background: "rgba(0,0,0,0.6)" }} onClick={() => setShowComments(false)} />
-              {/* Full screen comments panel */}
-              <div style={{ position: "fixed", top: 0, bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(12,12,12,0.99)", zIndex: 300, display: "flex", flexDirection: "column" }}>
-                {/* Header */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "56px 20px 14px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span style={{ color: "white", fontFamily: font.display, fontWeight: 800, fontSize: 16 }}>
+              {/* Backdrop — top portion only, tap to close, video visible through it */}
+              <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: "65vh", maxWidth: 480, margin: "0 auto", zIndex: 290, background: "rgba(0,0,0,0.5)" }} onClick={() => setShowComments(false)} />
+              {/* Bottom sheet */}
+              <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, maxWidth: 480, margin: "0 auto", background: "rgba(15,15,15,0.98)", borderRadius: "16px 16px 0 0", maxHeight: "65vh", height: "65vh", zIndex: 300, display: "flex", flexDirection: "column", boxShadow: "0 -8px 30px rgba(0,0,0,0.4)" }}>
+                {/* Drag handle */}
+                <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 4px", cursor: "pointer", flexShrink: 0 }} onClick={() => setShowComments(false)}>
+                  <div style={{ width: 40, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.25)" }} />
+                </div>
+                {/* Sticky header */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 20px 12px", borderBottom: "1px solid rgba(255,255,255,0.08)", flexShrink: 0 }}>
+                  <span style={{ color: "white", fontFamily: font.display, fontWeight: 800, fontSize: 15 }}>
                     💬 Comments · {current?.comments || 0}
                   </span>
-                  <button style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "50%", width: 34, height: 34, color: "white", fontSize: 18, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  <button style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "50%", width: 30, height: 30, color: "white", fontSize: 16, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                     onClick={() => setShowComments(false)}>✕</button>
                 </div>
 
-                {/* Comment list */}
-                <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px" }}>
+                {/* Scrollable comment list */}
+                <div style={{ flex: 1, overflowY: "auto", padding: "14px 16px", WebkitOverflowScrolling: "touch" }}>
                   {comments.length === 0 ? (
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "60%", gap: 12 }}>
-                      <div style={{ fontSize: 48 }}>💬</div>
-                      <div style={{ color: "rgba(255,255,255,0.6)", fontFamily: font.display, fontWeight: 700, fontSize: 15 }}>Be the first to comment!</div>
-                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 13 }}>Share your thoughts below</div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 10 }}>
+                      <div style={{ fontSize: 40 }}>💬</div>
+                      <div style={{ color: "rgba(255,255,255,0.6)", fontFamily: font.display, fontWeight: 700, fontSize: 14 }}>Be the first to comment!</div>
+                      <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>Share your thoughts below</div>
                     </div>
                   ) : comments.map(c => (
-                    <div key={c.id} style={{ display: "flex", gap: 12, marginBottom: 18 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: "50%", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, overflow: "hidden" }}>
+                    <div key={c.id} style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: "50%", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, overflow: "hidden" }}>
                         {c.userPhoto ? <img src={c.userPhoto} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : "👤"}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ color: "white", fontWeight: 700, fontSize: 13, marginBottom: 3 }}>{c.userName}</div>
-                        <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 14, lineHeight: 1.4 }}>{c.text}</div>
+                        <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, lineHeight: 1.4 }}>{c.text}</div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Input */}
-                <div style={{ padding: "10px 14px 30px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 10, alignItems: "center", background: "rgba(12,12,12,0.99)" }}>
-                  <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {user?.photoURL ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ color: "white", fontSize: 14 }}>👤</span>}
+                {/* Input anchored to bottom */}
+                <div style={{ padding: "10px 14px", paddingBottom: "calc(14px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 10, alignItems: "center", background: "rgba(15,15,15,0.98)", flexShrink: 0 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", background: "#333", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {user?.photoURL ? <img src={user.photoURL} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ color: "white", fontSize: 13 }}>👤</span>}
                   </div>
                   <input
-                    autoFocus
-                    style={{ flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 24, padding: "11px 16px", color: "white", fontSize: 14, outline: "none", fontFamily: font.body }}
+                    style={{ flex: 1, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 22, padding: "10px 16px", color: "white", fontSize: 13, outline: "none", fontFamily: font.body }}
                     placeholder="Add a comment..."
                     value={newComment}
                     onChange={e => setNewComment(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && postComment()}
                   />
-                  <button style={{ width: 40, height: 40, borderRadius: "50%", background: newComment.trim() ? C.primary : "rgba(255,255,255,0.1)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.2s", boxShadow: newComment.trim() ? "0 4px 12px rgba(124,58,237,0.4)" : "none" }}
+                  <button style={{ width: 38, height: 38, borderRadius: "50%", background: newComment.trim() ? C.primary : "rgba(255,255,255,0.1)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, transition: "background 0.2s", boxShadow: newComment.trim() ? "0 4px 12px rgba(124,58,237,0.4)" : "none" }}
                     onClick={postComment}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9" fill="white"/></svg>
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22,2 15,22 11,13 2,9" fill="white"/></svg>
                   </button>
                 </div>
               </div>
