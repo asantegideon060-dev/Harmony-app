@@ -699,7 +699,7 @@ function CommentsSheet({ postCount, comments, newComment, setNewComment, user, o
   );
 }
 
-function ExplorePage({ user }) {
+function ExplorePage({ user, setPage, setSelectedAssoc }) {
   const [videos, setVideos] = useState([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [liked, setLiked] = useState({});
@@ -826,7 +826,9 @@ function ExplorePage({ user }) {
           <div style={{ position: "absolute", right: 14, bottom: 120, display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
             {/* Avatar + Follow */}
             <div style={{ position: "relative", marginBottom: 4 }}>
-              <div style={{ width: 46, height: 46, borderRadius: "50%", border: "2px solid white", overflow: "hidden", background: "#333" }}>
+              <div
+                style={{ width: 46, height: 46, borderRadius: "50%", border: "2px solid white", overflow: "hidden", background: "#333", cursor: "pointer" }}
+                onClick={() => { if (setSelectedAssoc && setPage && current.assocId) { setSelectedAssoc({ id: current.assocId, name: current.assocName, logoURL: current.assocLogo }); setPage("assoc-profile"); } }}>
                 {current.assocLogo ? <img src={current.assocLogo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🏛️</div>}
               </div>
               {current.assocId !== user?.uid && (
@@ -854,7 +856,11 @@ function ExplorePage({ user }) {
 
           {/* Bottom info */}
           <div style={{ position: "absolute", bottom: 90, left: 14, right: 80 }}>
-            <div style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, color: "white", marginBottom: 4 }}>{current.assocName}</div>
+            <div
+              style={{ fontFamily: font.display, fontWeight: 700, fontSize: 15, color: "white", marginBottom: 4, cursor: "pointer", display: "inline-block" }}
+              onClick={() => { if (setSelectedAssoc && setPage && current.assocId) { setSelectedAssoc({ id: current.assocId, name: current.assocName, logoURL: current.assocLogo }); setPage("assoc-profile"); } }}>
+              {current.assocName}
+            </div>
             <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, fontFamily: font.body, lineHeight: 1.4 }}>{current.caption}</div>
           </div>
 
@@ -1163,7 +1169,7 @@ function AssocProfilePage({ assoc, user, setPage }) {
 }
 
 // ── Post Card ─────────────────────────────────────────────────
-function PostCard({ post, user }) {
+function PostCard({ post, user, setPage, setSelectedAssoc }) {
   const [liked, setLiked] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
@@ -1203,13 +1209,20 @@ function PostCard({ post, user }) {
 
   const isOwner = user?.uid === post.assocId;
 
+  const goToAssoc = () => {
+    if (setSelectedAssoc && setPage && post.assocId) {
+      setSelectedAssoc({ id: post.assocId, name: post.assocName, logoURL: post.assocLogo });
+      setPage("assoc-profile");
+    }
+  };
+
   return (
     <div style={S.card}>
       <div style={{ padding: "12px 14px 8px", display: "flex", alignItems: "center", gap: 10 }}>
-        <div style={{ width: 38, height: 38, borderRadius: 10, overflow: "hidden", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ width: 38, height: 38, borderRadius: 10, overflow: "hidden", background: C.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} onClick={goToAssoc}>
           {post.assocLogo ? <img src={post.assocLogo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span>🏛️</span>}
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, cursor: "pointer" }} onClick={goToAssoc}>
           <div style={{ fontWeight: 700, fontSize: 13, fontFamily: font.display }}>{post.assocName}</div>
           <div style={{ fontSize: 11, color: C.textMuted }}>{timeAgo(post.createdAt)}</div>
         </div>
@@ -1948,7 +1961,7 @@ export default function App() {
     if (isAdmin && page === "admin") return <AdminPage user={user} />;
     switch (page) {
       case "home": return <HomePage user={user} setPage={setPage} setSelectedAssoc={setSelectedAssoc} />;
-      case "explore": return <ExplorePage user={user} />;
+      case "explore": return <ExplorePage user={user} setPage={setPage} setSelectedAssoc={setSelectedAssoc} />;
       case "events": return <EventsPage user={user} setPage={setPage} setSelectedAssoc={setSelectedAssoc} />;
       case "search": return <SearchPage user={user} setPage={setPage} setSelectedAssoc={setSelectedAssoc} />;
       case "profile": return <ProfilePage user={user} setUser={setUser} setPage={setPage} />;
